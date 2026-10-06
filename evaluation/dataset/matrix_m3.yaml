@@ -1,0 +1,71 @@
+# ============================================================================
+# 消融实验矩阵（精简版：检索侧 **4 臂**，全程零 LLM 调用）
+#
+# 重构说明（2026-09-20）
+#   原矩阵共 21 条臂（Phase A 16 + Phase B 5），含嵌入后端/模型、分块、词典、
+#   参数敏感性、Prompt 等多类变量。本版按「北极星 = RAG 混合检索 + 可复现消融」
+#   收敛到 **4 臂**，只回答一个问题：*混合检索各组件各自值多少*。
+#
+#   已删除的臂与理由：
+#     - A-E1-*（3 条）  嵌入后端/模型维度，与「融合策略」主线无关，且 torch 臂需 GB 级依赖
+#     - A-E2b-*（2 条） 分块策略，轨道 A 短 passage 下逐位相同（见原注释）
+#     - A-DICT（1 条）  jieba 自定义词典，属分词工程细节
+#     - A-SENS-*（4 条）参数敏感性，属调参不属于主线结论
+#     - A-E3-m3（1 条） 原注释已写明与 base 逐位相同、P95 更慢，已砍
+#     - Phase B（5 条） 生成侧，依赖 LLM 生成 + judge，与「零 LLM 可复现评测」冲突
+#
+#   关于「无 RAG」臂（Fact）：当前 ArmConfig 没有 use_rag / enable_retrieval 字段，
+#   fusion 的合法取值只有 weighted / rrf / bm25_only / vector_only，
+#   **配置层无法表达「不检索」**。要加这一臂必须改 evaluation/experiment.py，
+#   属于功能扩展，未经批准不做。当前「无 RAG」的效果由 5 臂之间的横向差距间接体现。
+#
+#   关于显著性检验：已移除。4~6 臂样本量撑不起统计功效，改为直接报
+#   「相对基线的绝对提升百分比」，不做 p 值 / Holm–Bonferroni 推断。
+#
+#   关于精排臂（A-RERANK）：**本机不实测，但配置接口保留**。
+#   `reranker` 字段在 evaluation/experiment.py 的 ArmConfig 里仍然存在，
+#   rag/reranker.py 的 CrossEncoderReranker 也保留（它把权重加载推迟到首次
+#   rerank，不进启动路径）。不进矩阵的理由是**成本而非结论**：cross-encoder
+#   推理需要 torch（CPU 版约 2GB+），本机 C 盘已用 84%，为一个消融臂装 2GB
+#   依赖不划算。报表里该臂标注「本机未实测」—— 不编数字。
+#
+# 每条臂 = 基线 + changes，且 changes 只允许出现**一个**生效字段
+# （role: ablation 由 evaluation/experiment.py 强制，多改一个直接拒绝执行）。
+#
+# 用法：
+#   python scripts/run_ablation.py --matrix evaluation/dataset/matrix_m3.yaml --phase A
+# ============================================================================
+
+baseline:
+  arm_id: A-BASE
+  phase: A
+  # 不写 overrides 即完全等于 BASELINE_DEFAULTS：
+  # ONNX fastembed + bge-small-zh-v1.5 / heading 分块 500-80 /
+  # fusion=weighted（BM25 0.4 : 向量 0.6）/ fetch_k 20 → top_k 5 / 无重排。
+  # 即：本次消融的「混合检索」口径 = 基线本身。
+
+arms:
+  # ---------------- 单路对照：回答「混合到底值不值」 ---------------- #
+  - arm_id: A-BM25
+    notes: 仅 BM25 单路召回（不融合）；考察纯字面匹配的上限
+    changes:
+      fusion: bm25_only
+
+  - arm_id: A-VECTOR
+    notes: 仅向量单路召回（不融合）；考察纯语义匹配的上限
+    changes:
+      fusion: vector_only
+
+  # ---------------- 融合策略：回答「怎么合更好」 ---------------- #
+  - arm_id: A-RRF
+    notes: 混合召回 + RRF 融合（k=60）；只用秩，绕开 BM25 与 cosine 的量纲差异
+    changes:
+      fusion: rrf
+
+  # ---------------- 精排：本机不实测（见文件头说明） ---------------- #
+  # A-RERANK 需要 torch（≈2GB），本机磁盘/算力不允许，已从**本机实测矩阵**移除。
+  # 配置接口仍在：把下面 4 行注释放开即可在装了 torch 的机器上复跑。
+  # - arm_id: A-RERANK
+  #   notes: 混合加权 + bge-reranker-base 精排；需 torch，本机未实测
+  #   changes:
+  #     reranker: BAAI/bge-reranker-base

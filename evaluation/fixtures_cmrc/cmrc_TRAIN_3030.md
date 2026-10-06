@@ -1,0 +1,1 @@
+副剑齿虎（学名：Paramachairodus）是一种已灭绝的剑齿虎亚科剑齿虎。分布于1500万至900万年前中新世末期的欧洲和亚洲。副剑齿虎是已知最古老的剑齿虎，大量副剑齿虎化石发现于西班牙的马德里附近的一个中新世晚期化石点Cerro Batallones。有两具豹形化石比较出名，一具是大约处在瓦西里期到Turolian期的“Paramachairodus ogygia”，另一具则是完全处在Turolian期“Paramachairodus orientalis”。大多数学者认为发现的第三个物种“Paramachairodus maximiliani”可能和第一具化石是同种的。副剑齿虎肩高约58厘米，与美洲豹相似，但体型更加轻盈。四肢形状显示牠们是灵活的攀爬者，且可以猎杀相对大型的猎物。

@@ -1,0 +1,1 @@
+《长眠不醒》（The Big Sleep）是雷蒙·钱德勒1939年的小说，曾二度（1946年、1978年）被改编为电影。这是首本以菲利普·马罗（Philip Marlowe）为主角的小说，并被认为是钱德勒最杰出的作品之一，并被认为是冷硬派（hard boiled）的侦探小说代表作品。故事剧情错综复杂，许多角色在不同的故事里皆有联系。2005年，它被时代杂志评为百大英文小说之列。《夜长梦多》（The Big Sleep），由霍华德·霍克斯（Howard Hawks）导演，亨弗莱·鲍嘉（Humphrey Bogart）及洛琳·白考儿（Lauren Bacall）主演Robert Mitchum主演

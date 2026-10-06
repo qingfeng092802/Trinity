@@ -1,0 +1,166 @@
+%% M2 时序图集（docs/m2_design.md §4）
+%% 图一：上传 → 异步索引 → ready（含失败隔离分支）
+%% 图二：检索测试 POST /knowledge/search（含指纹校验与三路分数）
+%% 图三：executor 执行中调用 knowledge_search（写入 trace）
+%% 图四：进程启动 → RAG 服务初始化（含重启恢复与指纹重建）
+
+%% ============ 图一：上传索引流 ============
+sequenceDiagram
+    autonumber
+    participant C as 客户端
+    participant R as KnowledgeRoute（loop/线程池）
+    participant S as KnowledgeService
+    participant DB as Database（SQLite）
+    participant W as IndexWorker（专职单线程）
+    participant P as 解析器 parsers
+    participant D as DocumentSplitter
+    participant E as EmbeddingProvider（bge-small-zh）
+    participant V as VectorStore（sqlite-vec）
+
+    C->>R: POST /knowledge/documents（multipart 文件, overwrite?）
+    R->>R: 校验扩展名/大小（不支持→422 unsupported_format）
+    R->>DB: 按 filename 查重
+    alt 同名且未指定 overwrite
+        R-->>C: 409 duplicate_document
+    else 同名且 overwrite=true
+        R->>S: delete_document（旧 chunk+向量+文件全清）
+    end
+    R->>R: 保存文件到 knowledge_dir/files/{doc_id}_{filename}
+    R->>DB: INSERT documents(status=pending)
+    R->>S: worker.enqueue(IndexJob)
+    alt 队列满
+        S-->>R: False
+        R->>DB: mark_document_failed(queue_full)
+        R-->>C: 429 queue_full
+    else 入队成功
+        R-->>C: 201 DocumentView(status=pending)
+    end
+
+    Note over W: 专职线程逐个处理，不占 M1 任务队列槽位
+    W->>DB: mark_document_stage(parsing)
+    W->>P: parse(file_path)
+    alt 解析失败（如扫描件 PDF）
+        W->>DB: mark_document_failed("parsing", 文本层缺失…)
+        Note over W: 只影响本文档，下一个文档继续
+    else 解析成功
+        W->>DB: mark_document_stage(chunking)
+        W->>D: split(ParsedDocument)
+        W->>DB: save_chunks + mark_document_stage(embedding)
+        W->>E: embed(chunk_texts) 批量（batch_size=32）
+        alt embedding 失败（模型加载失败等）
+            W->>DB: mark_document_failed("embedding", …)
+        else 成功
+            W->>V: add(chunks, vectors)（事务内）
+            W->>DB: mark_document_ready(chunk_count, token_count, fingerprint)
+            W->>S: bm25 增量重建（毫秒级）
+        end
+    end
+    C->>R: GET /knowledge/documents/{id}（轮询）
+    R->>DB: get_document
+    R-->>C: 200 DocumentView（status: pending→parsing→chunking→embedding→ready/failed）
+
+%% ============ 图二：检索测试流 ============
+sequenceDiagram
+    autonumber
+    participant C as 客户端
+    participant R as KnowledgeRoute
+    participant S as KnowledgeService
+    participant F as 指纹校验
+    participant H as HybridRetriever
+    participant B as BM25Index（内存）
+    participant E as EmbeddingProvider
+    participant V as VectorStore
+    participant DB as Database
+
+    C->>R: POST /knowledge/search {"query","top_k?","bm25_weight?","vector_weight?"}
+    R->>R: 校验 query 非空/长度 ≤1000、权重 ∈[0,1]（违规→422）
+    R->>S: search(query, top_k, weights)
+    S->>F: fingerprint 与 knowledge_meta 比对
+    alt 指纹不匹配
+        S-->>R: FingerprintMismatchError
+        R-->>C: 409 fingerprint_mismatch（提示全量重索引）
+    else 匹配
+        S->>DB: count_chunks
+        alt 知识库为空
+            S-->>R: []（空列表，不是报错）
+            R-->>C: 200 hits=[]
+        else 有数据
+            par 关键词召回
+                H->>B: search(jieba 分词 query, top_k×4)
+                B-->>H: [(chunk_id, bm25_raw)]（RLock）
+            and 向量召回
+                H->>E: embed([query])（1 条）
+                E-->>H: query 向量
+                H->>V: query(vector, top_k×4)
+                V-->>H: [(chunk_id, cosine)]
+            end
+            H->>H: 两路各自 min-max 归一化 → 加权融合 → 排序截断 top_k
+            H->>DB: 回填 chunk 原文与文档元数据
+            H-->>S: list[SearchHit]（bm25/vector/混合三路分数+来源引用）
+            S-->>R: hits
+            R-->>C: 200 KnowledgeSearchResponse（≤500ms 目标）
+        end
+    end
+
+%% ============ 图三：executor 调 knowledge_search 流 ============
+sequenceDiagram
+    autonumber
+    participant Q as TaskQueue worker 线程
+    participant X as WorkflowRunner/ExecutorNode
+    participant Reg as ToolRegistry
+    participant T as knowledge_search 工具函数
+    participant S as KnowledgeService（注入）
+    participant H as HybridRetriever
+    participant DB as Database
+    participant Tr as TraceStore
+
+    Note over X: planner 已在计划中写明<br/>「用 knowledge_search 检索知识库」
+    Q->>X: 执行子步骤
+    X->>Reg: call("knowledge_search", {query, top_k})
+    Reg->>Reg: HITL 判定（danger_level=low → 直接放行，不拦截）
+    Reg->>Reg: validate_args（Schema 自动生成）
+    Reg->>T: knowledge_search(query=…, top_k=…)
+    T->>S: search(query, top_k)
+    alt 知识库为空 / 服务不可用 / 指纹不匹配
+        S-->>T: RagError（结构化原因）
+        T-->>Reg: 返回字符串化的失败说明（不抛异常）
+        Reg-->>X: ToolCallRecord(status=failed)
+        Note over X: executor 读到失败原因后可自我修正
+    else 检索成功
+        S->>H: search(...)
+        H-->>S: list[SearchHit]
+        S-->>T: hits
+        T->>T: 格式化：编号+来源引用（文档名·chunk序号·字符区间）+原文+三路分数
+        T-->>Reg: 结果字符串（超长截断，保引用完整）
+        Reg-->>X: ToolCallRecord(status=success, result=…)
+    end
+    Reg->>Tr: ToolCallRecord 经 NodeContext 落 trace（既有通道，零新机制）
+    Q->>DB: trace 随任务终态可回放
+    Note over X,Tr: 验收 A3：query/top_k/命中chunk/来源引用完整可见
+
+%% ============ 图四：启动初始化流 ============
+sequenceDiagram
+    autonumber
+    participant L as lifespan
+    participant Deps as api/deps
+    participant S as KnowledgeService
+    participant E as EmbeddingProvider
+    participant V as VectorStore
+    participant DB as Database
+    participant T as knowledge_search 工具
+
+    L->>Deps: get_knowledge_service()
+    Deps->>S: 构造（lru_cache 单例）
+    S->>V: open（加载 sqlite-vec 扩展）
+    alt 扩展加载失败
+        S->>V: 降级 ChromaStore（backend 配置兜底或 SPIKE 结论）
+    end
+    S->>DB: 启动恢复：status IN (parsing,chunking,embedding) → failed("进程重启中断，可重试")
+    S->>DB: 读全部 chunks → rebuild BM25 内存索引
+    S->>E: 惰性探活（不加载权重，只查路径/指纹）
+    alt 模型路径缺失 / 依赖缺失
+        Note over S: rag 降级可用：检索接口报 503 rag_unavailable，平台其余功能正常
+    end
+    S->>T: set_knowledge_service(self)（web_search 同款注入模式）
+    S->>L: start_worker()（专职索引线程）
+    L-->>L: /health 增加 rag 检查项（fail 只降 degraded，不 unhealthy）

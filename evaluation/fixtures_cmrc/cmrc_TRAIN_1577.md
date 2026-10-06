@@ -1,0 +1,1 @@
+裘恩教授席（Quain Professor）是设于英国伦敦大学学院中，四个不同科目的教授席。理察‧裘恩于1832年至1850年于大学学院任解剖学教授。他在1887年去世，留下大部份遗产（约75,000镑）予大学学院「以推广和普及现代语文（特别是英文及英文写作）和自然科学教育」。大学学院以他遗产设立教授席于四个不同科目，故此四教授席被命名为裘恩教授席以纪念裘恩教授的贡献。现时四个裘恩教授席分别为︰裘恩植物学教授（Quain Professor of Botany）、裘恩英语及文学教授（Quain Professor of English Language and Literature）、裘恩法理学教授（Quain Professor of Jurisprudence）及裘恩物理学教授（Quain Professor of Physics）。

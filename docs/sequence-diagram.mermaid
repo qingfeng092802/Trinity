@@ -1,0 +1,111 @@
+%% Mermaid sequenceDiagram 集合（M2 侧边栏接入 + Dashboard 空态）
+%% 用法：把下面每个 sequenceDiagram 块分别贴到支持 Mermaid 的渲染器。
+
+%% ============================================================
+%% 图 1：打开 /console → Dashboard 加载（含失败分支）
+%% ============================================================
+sequenceDiagram
+    participant U as 用户
+    participant B as 浏览器(app.js)
+    participant API as FastAPI
+    U->>B: 打开 /console
+    B->>B: state.view="dashboard"; loadDashboard()
+    B->>B: subtitle="加载中…"
+    B->>API: GET /stats/dashboard
+    alt 请求成功
+        API-->>B: 200 {today, daily, system, generated_at}
+        B->>B: try { 指标卡 + renderCostChart + renderQualityChart + renderSystemPanel }
+        alt 渲染抛异常
+            B->>B: subtitle="渲染失败（<环节>）：<msg>"; 插入 #dashboard-error
+        else 渲染正常
+            B->>B: subtitle="平台运行概览 · 数据生成于 HH:MM:SS"
+        end
+        B->>API: GET /tasks?limit=10 (await loadRecentTasks)
+        alt 成功
+            API-->>B: 200 {items}
+            B->>B: 有数据→表格行；空→灰字空态
+        else 失败
+            API-->>B: 5xx
+            B->>B: tbody 红字「加载失败：code: message」
+        end
+    else 请求失败 / 断网
+        API-->>B: 5xx 或 fetch reject
+        B->>B: subtitle="加载失败：…" / "无法连接 API(…)…"
+    end
+    Note over B: 副标题绝不残留「加载中…」
+
+%% ============================================================
+%% 图 2：工作流测试页：提交 → SSE → 节点更新 → 终态 → 清理
+%% ============================================================
+sequenceDiagram
+    participant U as 用户
+    participant B as 浏览器(app.js)
+    participant API as FastAPI
+    U->>B: 点侧边栏「工作流测试」
+    B->>B: switchView("workflow") → teardownCurrentView() → closeEventSource()
+    B->>B: 渲染表单；subtitle=VIEWS.workflow.subtitle
+    U->>B: 输入任务 + 点「提交任务」
+    B->>API: POST /tasks {task, run_judge}
+    API-->>B: 201 {task_id, status, stream_url, cancel_url}
+    B->>B: state.currentTaskId=task_id；显示 task_id 与「运行中」
+    B->>API: new EventSource(stream_url)  // state.eventSource
+    loop 帧流
+        API-->>B: event: snapshot {progress}
+        API-->>B: event: node {node, iteration, update}
+        B->>B: 追加执行过程行（escapeHtml）
+        API-->>B: event: heartbeat
+    end
+    alt 终态 done
+        API-->>B: event: done {final_answer, cost, duration_ms, score, grade}
+        B->>B: 渲染结果区；closeEventSource()
+    else 终态 failed
+        API-->>B: event: failed {error:{code,message}}
+        B->>B: 结果区红字 error；closeEventSource()
+    end
+    U->>B: 运行中点「取消任务」
+    B->>API: POST /tasks/{id}/cancel
+    API-->>B: 200 {status:"canceled", mode, note}
+    B->>B: toast("节点边界生效")；等待 canceled 帧后关流
+    Note over B: 离开页面(切页) → teardownCurrentView() 必关 SSE/定时器
+
+%% ============================================================
+%% 图 3：内置工具页：拉清单 → 选工具 → 动态表单 → 高危确认 → 调用 → 渲染
+%% ============================================================
+sequenceDiagram
+    participant U as 用户
+    participant B as 浏览器(app.js)
+    participant API as FastAPI
+    U->>B: 点侧边栏「内置工具」
+    B->>B: switchView("tools")
+    B->>API: GET /tools  (走 Bearer 鉴权)
+    alt 200
+        API-->>B: {items:[6 个工具], total:6}
+        B->>B: state.toolList=items；左栏渲染清单（含低危/高危徽标）
+    else 401
+        API-->>B: 401
+        B->>B: apiFetch 弹 Token 框 → 重试
+    else 失败
+        API-->>B: 5xx / reject
+        B->>B: 左栏显示「工具清单加载失败：…」（红字，不静默）
+    end
+    U->>B: 选 code_exec（danger_level=high）
+    B->>B: 按 parameters 动态生成表单；显示「⚠ 高危」
+    U->>B: 填参数 + 点「运行工具」
+    alt danger_level == "high"
+        B->>U: 弹确认框「该工具为高危操作，确认执行？」
+        U->>B: 确认
+    end
+    B->>API: POST /tools/code_exec/invoke?approve_high_risk=true body={"args":{...}}
+    alt 200 + status=success
+        API-->>B: {status:"success", result, hitl}
+        B->>B: 「✓ success」+ result
+    else 200 + status=failed + hitl.approved=false
+        API-->>B: {status:"failed", hitl:{required:true, approved:false, reason}}
+        B->>B: 「被拒绝」+ hitl.reason 原文（严禁伪装成功）
+    else 200 + status=timeout/failed
+        API-->>B: {status:"timeout"|"failed", result}
+        B->>B: 「执行失败」+ result
+    else 422（前端误摊平参数）
+        API-->>B: 422 {detail:[...]}
+        B->>B: 显示可理解的校验错误（不静默）
+    end

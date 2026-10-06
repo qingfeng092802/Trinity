@@ -1,0 +1,1 @@
+"Creative声卡，请参见x-fi"XFI是一个10 吉比特每秒的芯片间电气接口规范，是作为XFP多源协议的一部分定义的，由XFP MSA小组开发。XFI的主要应用是10 Gigabit Ethernet，10 吉比特每秒的光纤通道，SONET OC-192, SDH STM-64, 10 吉比特每秒的OTN OTU-2，以及并行光纤链接。XFI提供了采用64B/66B encoding模式下运行于10.3125吉比特每秒的单通道。XFI有时候也被读作"X" "F" "I"或"ziffie".在2006年中，多数10 G以太网产品使用XAUI接口，采用8B/10B encoding有4条运行于3.125Gbit/s的通道。大多数10吉比特以太网产品要求SerDes设备完成XAUI到XFI的传输。有些10 GbE设备集成了XAUI和XFI两种接口。

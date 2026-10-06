@@ -1,0 +1,1 @@
+Dabbler 由 Sketcher 发展而来，是一套面向儿童的电脑绘画软件，由 Fractal Design 最初研制，并配合压感笔和数位板一同使用。为著名绘画软件 Fractal Design Painter 的简化版本。Dabbler 2.0.4 曾在中国大陆很受欢迎。Dabbler 和 Painter 后来经 MetaCreations 最终转给了 Corel。Fractal Design 和 MetaTools 合并为 MetaCreations 后，MetaCreations 发布了 Art Dabbler，Corel 在收购 MetaCreations 后仍发布了一段时间的 Art Dabbler，但后来取消了这一计划，转而开发 Painter Essential。

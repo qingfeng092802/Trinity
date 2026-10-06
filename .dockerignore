@@ -1,0 +1,84 @@
+# ============================================================================
+# 构建上下文排除清单
+#
+# 目的有两个：一是让 `docker build` 的上下文足够小（几百 MB 的 .venv /
+# 运行时数据根本不该上传给 daemon），二是**防止密钥被打进镜像层**——
+# 镜像层是只增不减的，.env 一旦 COPY 进去，即使后面 rm 也还在层里，可被提取。
+# ============================================================================
+
+# ---- 密钥：绝不能进镜像 ----
+.env
+.env.*
+!.env.example
+*.key
+*.pem
+
+# ---- 运行时数据：一律走 volume，不进镜像 ----
+data/
+*.db
+*.db-shm
+*.db-wal
+*.sqlite3
+logs/
+*.log
+# 评测报告是产物，复跑即得
+evaluation/reports/
+
+# ---- Python 构建与缓存 ----
+.venv/
+venv/
+__pycache__/
+*.py[cod]
+*.egg-info/
+.eggs/
+build/
+dist/
+.pytest_cache/
+.pytest_tmp/
+.mypy_cache/
+.ruff_cache/
+.coverage
+htmlcov/
+
+# ---- 版本控制 / 编辑器 / 系统 ----
+.git/
+.gitignore
+.github/
+.idea/
+.vscode/
+.DS_Store
+Thumbs.db
+
+# ---- 本项目专用：镜像里不需要 Docker 自身产物 ----
+Dockerfile
+docker-compose.yml
+.dockerignore
+
+# ---- 探针 / 临时文件（工作流产物） ----
+_*.txt
+_*tmp*
+
+# ---- 已删除的旧前端（2026-09-27 摘掉 /console 静态托管）----
+# web/ 整目录已从仓库删除，这里保留忽略规则是**防复活**：本地残留一份 web/ 时，
+# 它不该被打进镜像 —— 后端容器现在只提供 API，界面统一在 web-react/ 里另行构建。
+web/
+
+# ---- 前端 Node 工程：容器只提供 API，界面与依赖都不进镜像（2026-09-27 补）----
+# 这条是补洞：之前 .dockerignore 里**一条 node_modules 都没有**，而 Dockerfile 是
+# `COPY . .` ⇒ 每次构建都把 web-react/node_modules 整个传给 daemon 并打进镜像层，
+# 而镜像里没有任何一步用得到它（Dockerfile 里没有 npm / node / 前端构建阶段）。
+# 数（**已用真构建核过**，2026-09-27，同一 daemon 冷跑两档）：
+# 经典 builder（`DOCKER_BUILDKIT=0`，无上下文缓存）打印的 `Sending build context to Docker
+# daemon`：**304.2 MB ⇒ 48.94 MB**（−255.3 MB）。buildx/BuildKit 那一档打印
+# `transferring context: 45.54MB`（比经典 builder 少 3.4 MB，是 tar 填充/元数据口径差，不是内容差）。
+# ⚠️ 上一版这里写的是 du 推算的 324 MB ⇒ 55 MB —— 偏大 7–11%，**别拿 du 当实测**：
+# `du -sm` 按 4 KB 块算，几十万小文件的目录会被高估（node_modules：du 271 MB / 逐文件求和 222.27 MB）。
+# 对账：222.27 + 2.44(dist) = 224.71 MB 内容，按 tar 的 512 B 头与补齐算约 243.44 MB，
+# 与实测差 255.26 MB 还差约 11.8 MB **归因不了** —— 最可能是 Windows 260 字符路径上限
+# 让 os.walk / du 漏了 node_modules 的深层条目（我没接 onerror）。⇒ 以 docker 打印的数为准。
+# ⚠️ 上面「Python 构建与缓存」段里那条 ``dist/`` 只匹配**根级** dist ——
+# .dockerignore 的模式按相对路径匹配，不写 ``**`` 就不跨目录，
+# 所以 ``web-react/dist``（vite 的产物，逐文件求和 2.44 MB）要单独列一行。
+node_modules
+**/node_modules
+web-react/dist

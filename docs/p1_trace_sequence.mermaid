@@ -1,0 +1,82 @@
+%% P1-A 轨迹事件：时序图（事件产生 → 同步落盘 → 异步广播 → 查询回放）
+%% 对应 docs/p1_trace_events_design.md §4
+
+sequenceDiagram
+    autonumber
+    participant API as POST /tasks（loop 线程）
+    participant Q as TaskQueue
+    participant W as TaskWorker（worker 线程）
+    participant N as BaseNode（planner/executor/reviewer）
+    participant A as LLMAdapter
+    participant T as ToolRegistry
+    participant DB as Database
+    participant TE as task_events 表
+    participant BUS as EventBus（纯内存）
+    participant SSE as SSE 客户端
+    participant RD as GET /tasks/{id}/trace（线程池）
+    participant FE as 轨迹回放页
+
+    Note over API,DB: ① 提交期：先落一条 queued 记录（既有行为，不改）
+    API->>DB: save_task(status=queued)
+    API->>Q: submit(item)
+    Q->>BUS: attach_loop()（启动时一次）
+
+    Note over W,TE: ② 执行期：每个事件「先落盘、再发实时」（K2 铁律）
+    W->>DB: mark_running(task_id)  # CAS
+    W->>DB: record_event(running, step=0, sse_seq=1)   # Q1
+    DB->>TE: INSERT event_seq=N1+1  COMMIT
+    W->>BUS: publish(EVT_SNAPSHOT, seq=1)
+
+    W->>N: runner.stream() → planner.__call__(state)
+    N->>A: invoke_json(PLAN_SCHEMA)
+    A-->>N: plan（A.last_usage 更新 token_in/token_out/cost/duration_ms）
+    N->>DB: record_event(llm_call, role=planner, node=planner, step=0, tokens_in/out, cost, latency_ms)   # L1
+    DB->>TE: INSERT event_seq=N1+2  COMMIT
+    N->>DB: record_event(node_end, role=planner, step=0, thought/observation, status=success)             # L2
+    DB->>TE: INSERT event_seq=N1+3  COMMIT
+    N-->>W: yield ("planner", update)
+    W->>DB: record_event(node, node=planner, step=0, sse_seq=2)   # Q2
+    DB->>TE: INSERT event_seq=N1+4  COMMIT
+    W->>BUS: publish(EVT_NODE, seq=2)
+    BUS-->>SSE: 实时帧（可丢，不影响回放）
+
+    W->>N: executor.__call__(state)
+    loop 每个子步骤 index
+        N->>A: invoke_model(ExecutorDecision)
+        A-->>N: decision{thought, tool_name, tool_args, answer}
+        N->>DB: record_event(llm_call, node=executor, step=0, sub_step=index, thought=decision.thought, tokens/cost)   # L1
+        DB->>TE: INSERT  COMMIT
+        alt decision.tool_name 非空
+            N->>T: call(tool_name, tool_args)
+            T-->>N: ToolCallRecord{name,args,result,status,duration_ms}
+            N->>DB: record_event(tool_call, node=executor, step=0, sub_step=index, tool_name, arguments=args, observation=result, status, latency_ms)   # T1
+            DB->>TE: INSERT  COMMIT
+        end
+        N->>DB: record_event(node_end, node=executor, step=0, sub_step=index, observation=output, status)   # L2
+        DB->>TE: INSERT  COMMIT
+    end
+    N-->>W: yield ("executor", update)
+    W->>BUS: publish(EVT_NODE, seq=3)
+
+    W->>N: reviewer.__call__(state)
+    N->>A: invoke_model(ReviewVerdict)
+    A-->>N: verdict
+    N->>DB: record_event(llm_call + node_end, node=reviewer, step=N-1, thought=comment, status)   # L1+L2
+    DB->>TE: INSERT ×2  COMMIT
+    N-->>W: yield ("reviewer", update)
+
+    Note over W,DB: ③ 终态：修掉 error_code 恒 NULL 的缺陷（E1）
+    W->>DB: persist_terminal(collected)
+    DB->>DB: mark_terminal(status, error_code=classify_error(...), error_message=...)   # ★ 主修点
+    W->>DB: record_event(done|failed, error_code, error_message, step=max)   # Q3
+    DB->>TE: INSERT event_seq=N2  COMMIT
+    W->>BUS: publish(EVT_DONE|EVT_FAILED, seq=5)
+
+    Note over FE,RD: ④ 回放：进程重启后仍可拉全量（EventBus 已清空也不影响）
+    FE->>RD: GET /tasks/{id}/trace?limit=200&after_seq=0
+    RD->>DB: list_events(task_id, after_seq, limit)
+    DB->>TE: SELECT ... WHERE task_id=? AND event_seq>? ORDER BY event_seq LIMIT ?
+    TE-->>DB: rows
+    DB-->>RD: [TaskEventRecord]
+    RD-->>FE: TaskTraceResponse{items,total,has_more,next_after_seq,events_available=true}
+    FE->>FE: renderTraceEvents(items)  # 按 step 分组、event_seq 排序

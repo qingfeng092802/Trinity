@@ -1,0 +1,41 @@
+{
+  "generated_at": "2026-09-20T08:28:15",
+  "tool": "scripts/build_golden_set.py",
+  "dataset": "hfl/cmrc2018 (cc-by-sa-4.0) via hf-mirror",
+  "seed": 7,
+  "splits_used": "train+validation",
+  "corpus_docs": 1000,
+  "held_docs": 200,
+  "corpus_chars": 517527,
+  "corpus_tokens_est": 323454,
+  "rows_total": 300,
+  "pools": {
+    "factual": {
+      "want": 165,
+      "picked": 165,
+      "pool_size": 2921,
+      "dropped_leak": 0,
+      "notes": [
+        "模糊池（答案 span 出现在 ≥2 篇）391 篇题 / 唯一池 2530 题",
+        "目标超采比例 40% → 事实题里实际模糊题 66 道（40%）"
+      ]
+    },
+    "term": {
+      "want": 45,
+      "picked": 45,
+      "pool_size": 1183,
+      "dropped_leak": 0,
+      "notes": []
+    },
+    "refusal": {
+      "want": 90,
+      "picked": 90,
+      "pool_size": 696,
+      "dropped_leak": 141,
+      "notes": [
+        "留出题 837 条中 141 条（16.8%）答案 span 命中入库语料，判为伪拒答已剔除"
+      ]
+    }
+  },
+  "track_b": "多跳 30 + 术语 15 + 事实 5 走人工（等长文档语料），不在本脚本内"
+}

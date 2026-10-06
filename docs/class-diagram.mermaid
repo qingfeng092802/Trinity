@@ -1,0 +1,55 @@
+%% Mermaid classDiagram 集合（M2 侧边栏接入 + Dashboard 空态）
+%% 用法：把下面每个 classDiagram 块分别贴到支持 Mermaid 的渲染器。
+
+%% ============================================================
+%% 图 A：后端新增 schema（ToolSpecView 显式排除 func）
+%% ============================================================
+classDiagram
+    class ToolListResponse {
+        +list~ToolSpecView~ items
+        +int total
+    }
+    class ToolSpecView {
+        +str name
+        +str description
+        +ToolDanger danger_level
+        +int timeout
+        +int retry
+        +dict~str,Any~ parameters
+    }
+    class ToolSpec {
+        +str name
+        +str description
+        +dict parameters
+        +ToolDanger danger_level
+        +int timeout
+        +int retry
+        +Callable func
+    }
+    ToolListResponse "1" o-- "0..*" ToolSpecView : items
+    ToolSpecView ..> ToolSpec : 由 registry.specs() 映射（显式挑 6 字段）
+    note for ToolSpec "func 是 Field(exclude=True)；但仍须新建 ToolSpecView 才能保证 FastAPI response_model 不含 func"
+
+%% ============================================================
+%% 图 B：前端 state 扩展后结构
+%% ============================================================
+classDiagram
+    class State {
+        +str base
+        +str token
+        +str view
+        +str tab
+        +number_or_null pollTimer
+        +number activeCount
+        +string_or_null detailOpen
+        +string_or_null currentTaskId
+        +EventSource_or_null eventSource
+        +number_or_null pagePollTimer
+        +Array toolList
+        +string_or_null selectedTool
+        +Object knowledgeCache
+        +number evalOffset
+        +number evalLimit
+        +string evalFilterTaskId
+    }
+    note for State "view ∈ dashboard|queue|workflow|trace|knowledge|tools|eval；eventSource/pagePollTimer 切页必清"

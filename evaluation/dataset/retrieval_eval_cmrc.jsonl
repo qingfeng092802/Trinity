@@ -1,0 +1,70 @@
+{"id": "A-factual-001", "type": "factual", "query": "袭击渔船的生物是谁？", "expect_document": "cmrc_TRAIN_837.md", "expect_keywords": ["哥吉拉"]}
+{"id": "A-factual-002", "type": "factual", "query": "天主教阿维尼翁总教区是哪里的总教区？", "expect_document": "cmrc_TRAIN_1758.md", "expect_keywords": ["法国南部"]}
+{"id": "A-factual-003", "type": "factual", "query": "颊鳞雀鲷的俗名叫什么？", "expect_document": "cmrc_DEV_153.md", "expect_keywords": ["厚壳仔"]}
+{"id": "A-factual-004", "type": "factual", "query": "1895年，清廷通过马关条约将台湾割让给了哪个国家？", "expect_document": "cmrc_TRAIN_3096.md", "expect_keywords": ["日本"]}
+{"id": "A-factual-005", "type": "factual", "query": "《战神》这个游戏是根据什么神话改编？", "expect_document": "cmrc_TRAIN_3747.md", "expect_keywords": ["希腊神话"]}
+{"id": "A-factual-006", "type": "factual", "query": "胡红玉是什么教徒？", "expect_document": "cmrc_TRAIN_2015.md", "expect_keywords": ["天主教徒"]}
+{"id": "A-factual-007", "type": "factual", "query": "刺海马主要分布在什么地方？", "expect_document": "cmrc_TRAIN_2124.md", "expect_keywords": ["印度太平洋区"]}
+{"id": "A-factual-008", "type": "factual", "query": "钝头鹦嘴鱼属于哪一科？", "expect_document": "cmrc_DEV_606.md", "expect_keywords": ["鹦哥鱼科"]}
+{"id": "A-factual-009", "type": "factual", "query": "《破损的耳朵》的作者是谁？", "expect_document": "cmrc_TRAIN_1167.md", "expect_keywords": ["比利时漫画家埃尔热"]}
+{"id": "A-factual-010", "type": "factual", "query": "日本魣分布在哪里？", "expect_document": "cmrc_TRAIN_2130.md", "expect_keywords": ["印度西太平洋区"]}
+{"id": "A-factual-011", "type": "factual", "query": "马赛罗是踢什么位置的足球运动员？", "expect_document": "cmrc_DEV_638.md", "expect_keywords": ["前锋"]}
+{"id": "A-factual-012", "type": "factual", "query": "基奥云高是哪个国家的运动员？", "expect_document": "cmrc_TRAIN_494.md", "expect_keywords": ["意大利足球运动员"]}
+{"id": "A-factual-013", "type": "factual", "query": "玉珊瑚为什么主要用为观赏植物？", "expect_document": "cmrc_TRAIN_3694.md", "expect_keywords": ["花期长"]}
+{"id": "A-factual-014", "type": "factual", "query": "广泛性发展障碍有几种类别？", "expect_document": "cmrc_TRAIN_1293.md", "expect_keywords": ["五个"]}
+{"id": "A-factual-015", "type": "factual", "query": "变色树蜥多栖息于什么地带？", "expect_document": "cmrc_TRAIN_3142.md", "expect_keywords": ["热带和亚热带"]}
+{"id": "A-factual-016", "type": "factual", "query": "刺鲳鱼体呈什么形状？", "expect_document": "cmrc_TRAIN_3510.md", "expect_keywords": ["椭圆形"]}
+{"id": "A-factual-017", "type": "factual", "query": "叶定仕故居仿造谁的故居而建？", "expect_document": "cmrc_TRAIN_2692.md", "expect_keywords": ["孙中山"]}
+{"id": "A-factual-018", "type": "factual", "query": "2004年球队搬到了哪里？", "expect_document": "cmrc_TRAIN_1716.md", "expect_keywords": ["上海"]}
+{"id": "A-factual-019", "type": "factual", "query": "班卡雀鲷属于什么科目？", "expect_document": "cmrc_DEV_147.md", "expect_keywords": ["辐鳍鱼纲鲈形目隆头鱼亚目雀鲷科"]}
+{"id": "A-factual-020", "type": "factual", "query": "都城嘉慕威曼都城骑士在1988年曾送样车到了什么地方？", "expect_document": "cmrc_TRAIN_2736.md", "expect_keywords": ["香港"]}
+{"id": "A-factual-021", "type": "factual", "query": "裂带天竺鲷分布在什么地方？", "expect_document": "cmrc_TRAIN_2289.md", "expect_keywords": ["印度西太平洋区"]}
+{"id": "A-factual-022", "type": "factual", "query": "护玄来自哪里？", "expect_document": "cmrc_TRAIN_3713.md", "expect_keywords": ["台湾"]}
+{"id": "A-factual-023", "type": "factual", "query": "粤语配音动画主要由哪个单位制作的？", "expect_document": "cmrc_DEV_515.md", "expect_keywords": ["香港无线电视与亚洲电视外购并作后期制作"]}
+{"id": "A-factual-024", "type": "factual", "query": "迈克尔·路易斯·弗兰德利在学校任什么职务？", "expect_document": "cmrc_TRAIN_1099.md", "expect_keywords": ["心理学教授，以及统计学顾问服务部（）的副协调员。"]}
+{"id": "A-factual-025", "type": "factual", "query": "台湾草蜥的俗名是什么？", "expect_document": "cmrc_TRAIN_3148.md", "expect_keywords": ["台湾蛇舅母、舅母蛇、狗母索"]}
+{"id": "A-factual-026", "type": "factual", "query": "国贸吸引众多全球500强公司入驻办公的原因是什么？", "expect_document": "cmrc_TRAIN_2475.md", "expect_keywords": ["其地理位置极其优越及设施完备现代"]}
+{"id": "A-factual-027", "type": "factual", "query": "孙达志还被人们称为什么？", "expect_document": "cmrc_TRAIN_2459.md", "expect_keywords": ["「光头志」、「老孙」"]}
+{"id": "A-factual-028", "type": "factual", "query": "现在第一条原创的钢制拖链样板已经发展为什么？", "expect_document": "cmrc_TRAIN_2050.md", "expect_keywords": ["钢制和塑料拖链"]}
+{"id": "A-factual-029", "type": "factual", "query": "小行星序号适用于哪些行星？", "expect_document": "cmrc_DEV_566.md", "expect_keywords": ["小行星和矮行星"]}
+{"id": "A-factual-030", "type": "factual", "query": "Comic World在哪里举办？", "expect_document": "cmrc_TRAIN_2659.md", "expect_keywords": ["日本以外地区委托当地同人团体举办。"]}
+{"id": "A-factual-031", "type": "factual", "query": "时代图书公司是谁组成的？", "expect_document": "cmrc_TRAIN_532.md", "expect_keywords": ["张光宇与邵洵美"]}
+{"id": "A-factual-032", "type": "factual", "query": "亚马留将军有什么特别的称号？", "expect_document": "cmrc_TRAIN_2236.md", "expect_keywords": ["「独臂将军」"]}
+{"id": "A-factual-033", "type": "factual", "query": "它们以什么为食？", "expect_document": "cmrc_TRAIN_2303.md", "expect_keywords": ["以其他鱼类、甲壳类、头足类等为食。"]}
+{"id": "A-factual-034", "type": "factual", "query": "《北国之春》的原唱是谁？", "expect_document": "cmrc_TRAIN_811.md", "expect_keywords": ["千昌夫"]}
+{"id": "A-factual-035", "type": "factual", "query": "2010年11月20日，贝勒斯被交易到了多伦多猛龙以及斯托贾科维奇和一些钱，换来了谁？", "expect_document": "cmrc_TRAIN_1818.md", "expect_keywords": ["杰瑞特·杰克、马库斯·班克斯和大卫·安德森"]}
+{"id": "A-factual-036", "type": "factual", "query": "八斗子渔港的机关是什么？", "expect_document": "cmrc_TRAIN_349.md", "expect_keywords": ["农委会渔业署"]}
+{"id": "A-factual-037", "type": "factual", "query": "太浩湖流域是怎么形成的？", "expect_document": "cmrc_DEV_546.md", "expect_keywords": ["地质层断裂"]}
+{"id": "A-factual-038", "type": "factual", "query": "《花吃了那女孩》的故事地点在哪里？", "expect_document": "cmrc_TRAIN_815.md", "expect_keywords": ["台北一座老旧公寓"]}
+{"id": "A-factual-039", "type": "factual", "query": "此次创下影帝记录的是谁？", "expect_document": "cmrc_TRAIN_2377.md", "expect_keywords": ["梁朝伟"]}
+{"id": "A-factual-040", "type": "factual", "query": "石山合战时，重秀被称为什么？", "expect_document": "cmrc_TRAIN_543.md", "expect_keywords": ["重秀与下间赖廉并称为「大坂之左右大将」。"]}
+{"id": "A-factual-041", "type": "factual", "query": "崔莹缘何得到了高丽军队和高丽恭愍王的器重？", "expect_document": "cmrc_TRAIN_3574.md", "expect_keywords": ["多次打败倭寇"]}
+{"id": "A-factual-042", "type": "factual", "query": "红翅旋壁雀的模式产地是哪里？", "expect_document": "cmrc_TRAIN_2717.md", "expect_keywords": ["欧洲南部"]}
+{"id": "A-factual-043", "type": "factual", "query": "黄鞍鹦嘴鱼俗称为什么？", "expect_document": "cmrc_DEV_551.md", "expect_keywords": ["鹦哥、青衫（雄）、蚝鱼（雌）"]}
+{"id": "A-factual-044", "type": "factual", "query": "雾雨魔理沙的武器是什么？", "expect_document": "cmrc_TRAIN_2033.md", "expect_keywords": ["战斗技巧以弹幕为主，其主要是魔炮和星星，名称大多跟星象有关。"]}
+{"id": "A-factual-045", "type": "factual", "query": "Franconian和Petronian的相同点有哪些？", "expect_document": "cmrc_TRAIN_1064.md", "expect_keywords": ["两者皆在节奏上作出对比，由上而下的声部依序为快，中，慢"]}
+{"id": "A-factual-046", "type": "factual", "query": "犯罪小说主要描述哪些内容？", "expect_document": "cmrc_DEV_1132.md", "expect_keywords": ["犯罪、侦查、动机与嫌疑犯"]}
+{"id": "A-factual-047", "type": "factual", "query": "《1918年人民代表法令》也被称为什么？", "expect_document": "cmrc_TRAIN_1261.md", "expect_keywords": ["《第四部改革法令》"]}
+{"id": "A-factual-048", "type": "factual", "query": "NGC 6231的年龄是多少？", "expect_document": "cmrc_TRAIN_36.md", "expect_keywords": ["约为三百二十万年"]}
+{"id": "A-factual-049", "type": "factual", "query": "这本书有什么参考价值？", "expect_document": "cmrc_TRAIN_2356.md", "expect_keywords": ["对研究魏晋南北朝历史及南京地区历史地理都很有参考价值。"]}
+{"id": "A-factual-050", "type": "factual", "query": "褐带天竺鲷一般栖息在什么地方？", "expect_document": "cmrc_TRAIN_2296.md", "expect_keywords": ["外海岩礁区"]}
+{"id": "A-factual-051", "type": "factual", "query": "相较于其他海上自卫队护卫舰，榛名级护卫舰有什么优势？", "expect_document": "cmrc_TRAIN_73.md", "expect_keywords": ["相较于更之前与他国海军驱逐舰同等的海上自卫队护卫舰，榛名级配备有可以停放三架直升机的大型机库，舰尾则是大面积的起降甲板，因此拥有较佳的反潜作战能力。"]}
+{"id": "A-factual-052", "type": "factual", "query": "疣鹦嘴鱼的鳞片有什么特点？", "expect_document": "cmrc_DEV_524.md", "expect_keywords": ["各鳞片具淡红色缘。头部及各鳍条较暗色", "各鳞片具淡红色缘"]}
+{"id": "A-factual-053", "type": "factual", "query": "11月26日，查理斯·哈契特在英国皇家学会宣读了什么论文？", "expect_document": "cmrc_TRAIN_2565.md", "expect_keywords": ["《北美一矿物分析含有的一种至今未知的金属》"]}
+{"id": "A-factual-054", "type": "factual", "query": "天主教桑斯总教区相当于什么？", "expect_document": "cmrc_TRAIN_1755.md", "expect_keywords": ["勃艮第大区的约讷省"]}
+{"id": "A-factual-055", "type": "factual", "query": "影片通篇使用了怎样的手法拍摄？", "expect_document": "cmrc_TRAIN_1231.md", "expect_keywords": ["用静止的镜头和自然光拍摄"]}
+{"id": "A-term-056", "type": "term", "query": "《康健杂志》创刊于哪一年？", "expect_document": "cmrc_DEV_427.md", "expect_keywords": ["1998年"]}
+{"id": "A-term-057", "type": "term", "query": "本作的漫画版初期投搞于哪个杂志社？", "expect_document": "cmrc_TRAIN_2329.md", "expect_keywords": ["集英社旗下的漫画杂志《Ribon》"]}
+{"id": "A-term-058", "type": "term", "query": "蔡温本《中山世谱》到哪年才被迫停止？", "expect_document": "cmrc_TRAIN_2599.md", "expect_keywords": ["1876年"]}
+{"id": "A-term-059", "type": "term", "query": "卡鲁索凯旋门在什么地方？", "expect_document": "cmrc_TRAIN_2272.md", "expect_keywords": ["位于卢浮宫范围内的卡鲁索广场（Place du Carrousel）"]}
+{"id": "A-term-060", "type": "term", "query": "谁将这些化石进行叙述、命名？", "expect_document": "cmrc_TRAIN_1506.md", "expect_keywords": ["古生物学家Nathan Smith与迪亚戈·玻尔（Diego Pol）"]}
+{"id": "A-term-061", "type": "term", "query": "旷野鹰豪乐团第四张专辑《伊瑟利亚传奇》在哪一年发行？", "expect_document": "cmrc_DEV_202.md", "expect_keywords": ["2008年"]}
+{"id": "A-term-062", "type": "term", "query": "突破辅导中心在哪一年成立？", "expect_document": "cmrc_DEV_461.md", "expect_keywords": ["1975年"]}
+{"id": "A-term-063", "type": "term", "query": "《全唐诗》一共收录了多少首项斯的诗？", "expect_document": "cmrc_DEV_269.md", "expect_keywords": ["98首"]}
+{"id": "A-term-064", "type": "term", "query": "中国国际贸易中心位于什么地方？", "expect_document": "cmrc_TRAIN_2475.md", "expect_keywords": ["中国北京朝阳区中央商务区的核心地段，东长安街延长线与东三环路交界处，距首都国际机场直线距离20余公里。"]}
+{"id": "A-term-065", "type": "term", "query": "固始站的年发送、到达旅客可以达到多少人次？", "expect_document": "cmrc_DEV_33.md", "expect_keywords": ["6.5万、8.5万", "分别为6.5万、8.5万人次"]}
+{"id": "A-term-066", "type": "term", "query": "护玄正式出道的第十年是在哪一年？", "expect_document": "cmrc_TRAIN_3713.md", "expect_keywords": ["2015年"]}
+{"id": "A-term-067", "type": "term", "query": "FIPS代码的含义是什么？", "expect_document": "cmrc_DEV_328.md", "expect_keywords": ["首两个数字是州份的代码，而后三个数字则是县份的代码。", "由5个数字组成，首两个数字是州份的代码，而后三个数字则是县份的代码"]}
+{"id": "A-term-068", "type": "term", "query": "目前社民党主席是哪一年上任的？", "expect_document": "cmrc_TRAIN_1222.md", "expect_keywords": ["2006年"]}
+{"id": "A-term-069", "type": "term", "query": "乙二醛的化学式是什么？", "expect_document": "cmrc_DEV_125.md", "expect_keywords": ["OCHCHO"]}
+{"id": "A-term-070", "type": "term", "query": "吴三桂在什么时间于湖南衡阳称帝？", "expect_document": "cmrc_DEV_472.md", "expect_keywords": ["康熙十七年（1678年）"]}

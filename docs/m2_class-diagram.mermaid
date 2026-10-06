@@ -1,0 +1,256 @@
+%% M2 类图：RAG 知识库核心对象（docs/m2_design.md §3.3）
+classDiagram
+    direction LR
+
+    %% ---------------- rag 包 ----------------
+    class ParsedBlock {
+        +str text
+        +str kind  %% heading|paragraph
+        +int level
+        +int start_char
+    }
+
+    class ParsedDocument {
+        +str source_name
+        +list~ParsedBlock~ blocks
+        +int total_chars
+        +to_plain_text() str
+    }
+
+    class DocumentSplitter {
+        -Settings settings
+        +split(doc, chunk_size, overlap) list~Chunk~
+    }
+
+    class Chunk {
+        +str chunk_id
+        +str document_id
+        +int seq
+        +str text
+        +int start_char
+        +int end_char
+        +int token_count
+    }
+
+    class EmbeddingProvider {
+        <<protocol>>
+        +name() str
+        +dim() int
+        +fingerprint() str
+        +embed(texts) list~list~float~~
+    }
+
+    class LocalBgeEmbedder {
+        -object _model
+        -int batch_size
+        -bool _loaded
+        +_ensure_loaded() None
+        +embed(texts) list~list~float~~
+        +health_check() tuple~bool,str~
+    }
+
+    class VectorStore {
+        <<protocol>>
+        +add(chunks, vectors) None
+        +query(vector, top_k) list~tuple~str,float~~
+        +delete_document(document_id) None
+        +count() int
+        +backend_name() str
+    }
+
+    class SQLiteVecStore {
+        -Path db_path
+        -object _conn
+        +_load_extension() None
+    }
+
+    class ChromaStore {
+        -Path persist_dir
+    }
+
+    class BM25Index {
+        -BM25Okapi _index
+        -list~str~ _chunk_ids
+        -Lock _lock
+        +rebuild(chunks) None
+        +search(query, top_k) list~tuple~str,float~~
+    }
+
+    class HybridRetriever {
+        -EmbeddingProvider embedder
+        -VectorStore store
+        -BM25Index bm25
+        -float bm25_weight
+        -float vector_weight
+        -int candidate_multiplier
+        +search(query, top_k, weights) list~SearchHit~
+        -_normalize(scores) dict
+        -_fuse(bm25_hits, vec_hits, weights) list~SearchHit~
+    }
+
+    class SearchHit {
+        +str chunk_id
+        +str document_id
+        +str document_name
+        +int chunk_seq
+        +int start_char
+        +int end_char
+        +str text
+        +float bm25_score
+        +float vector_score
+        +float score
+    }
+
+    class IndexWorker {
+        -Queue _queue
+        -Thread _thread
+        -Event _stop
+        +enqueue(job) bool
+        +start() None
+        +stop() None
+        +pending_count() int
+        -_run() None
+        -_process(job) None
+        -_set_stage(document_id, stage) None
+        -_fail(document_id, stage, error) None
+    }
+
+    class KnowledgeService {
+        -Database database
+        -EmbeddingProvider embedder
+        -VectorStore store
+        -BM25Index bm25
+        -HybridRetriever retriever
+        -IndexWorker worker
+        -Lock _index_lock
+        +initialize() None
+        +start_worker() None
+        +stop_worker() None
+        +ingest(filename, file_path, overwrite) DocumentRecord
+        +get_document(id) DocumentRecord
+        +list_documents() list~DocumentRecord~
+        +delete_document(id) bool
+        +retry_document(id) DocumentRecord
+        +overview() KnowledgeOverview
+        +search(query, top_k, weights) list~SearchHit~
+        +health_check() tuple~str,str~
+        +check_fingerprint() None
+        +rebuild_bm25() None
+    }
+
+    class RagError {
+        <<exception>>
+    }
+    class ParserError
+    class SplitterError
+    class EmbeddingError
+    class StoreError
+    class FingerprintMismatchError
+
+    %% ---------------- storage ----------------
+    class DocumentRecord {
+        +str document_id
+        +str filename
+        +int size_bytes
+        +str format
+        +str status
+        +str error_stage
+        +str error_message
+        +int chunk_count
+        +int token_count
+        +str embedding_fingerprint
+        +str file_hash
+        +str file_path
+        +datetime created_at
+        +datetime indexed_at
+        +as_dict() dict
+    }
+
+    class ChunkRecord {
+        +str chunk_id
+        +str document_id
+        +int seq
+        +str text
+        +int start_char
+        +int end_char
+        +int token_count
+    }
+
+    class Database {
+        +save_document() DocumentRecord
+        +get_document(id) DocumentRecord
+        +list_documents() list
+        +delete_document(id) bool
+        +mark_document_stage(id, stage) bool
+        +mark_document_failed(id, stage, msg) bool
+        +mark_document_ready(id, counts, fp) bool
+        +save_chunks(doc_id, chunks) None
+        +list_chunks(doc_id) list~ChunkRecord~
+        +list_all_chunks() list~ChunkRecord~
+        +get_meta(key) str
+        +set_meta(key, value) None
+    }
+
+    %% ---------------- 工具与 API ----------------
+    class knowledge_search {
+        <<builtin tool>>
+        +search(query, top_k) str
+        +register(registry) ToolSpec
+        +set_knowledge_service(svc) None
+    }
+
+    class KnowledgeServiceAPI {
+        <<api/routes/knowledge.py>>
+        +upload_document()
+        +list_documents()
+        +get_document()
+        +delete_document()
+        +retry_index()
+        +test_search()
+        +overview()
+    }
+
+    class KnowledgeRouteDeps {
+        <<api/deps.py>>
+        +get_knowledge_service() KnowledgeService
+    }
+
+    %% ---------------- 关系 ----------------
+    LocalBgeEmbedder ..|> EmbeddingProvider
+    SQLiteVecStore ..|> VectorStore
+    ChromaStore ..|> VectorStore
+
+    KnowledgeService *-- "1" EmbeddingProvider : 持有
+    KnowledgeService *-- "1" VectorStore : 持有
+    KnowledgeService *-- "1" BM25Index : 持有
+    KnowledgeService *-- "1" HybridRetriever : 装配
+    KnowledgeService *-- "1" IndexWorker : 持有
+    KnowledgeService --> Database : 文档与chunk元数据
+    KnowledgeService ..> RagError : 失败隔离
+
+    HybridRetriever ..> SearchHit : 产出
+    HybridRetriever --> EmbeddingProvider : 查询向量化
+    HybridRetriever --> VectorStore : 向量召回
+    HybridRetriever --> BM25Index : 关键词召回
+    BM25Index ..> Chunk : jieba 分词后建索引
+
+    DocumentSplitter ..> ParsedDocument : 输入
+    DocumentSplitter ..> Chunk : 产出
+    ParsedDocument "1" *-- "1..*" ParsedBlock : 结构块
+    IndexWorker ..> DocumentSplitter : 切分
+    IndexWorker ..> EmbeddingProvider : 批量向量化
+    IndexWorker ..> VectorStore : 写向量
+    IndexWorker --> Database : 阶段状态落库
+
+    ParserError --|> RagError
+    SplitterError --|> RagError
+    EmbeddingError --|> RagError
+    StoreError --|> RagError
+    FingerprintMismatchError --|> RagError
+
+    Database "1" o-- "0..*" DocumentRecord : documents 表
+    DocumentRecord "1" o-- "0..*" ChunkRecord : chunks 表
+
+    knowledge_search ..> KnowledgeService : 延迟注入检索
+    KnowledgeServiceAPI ..> KnowledgeService : 依赖
+    KnowledgeRouteDeps ..> KnowledgeService : lru_cache 单例

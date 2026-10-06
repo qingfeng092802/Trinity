@@ -1,0 +1,1 @@
+广泛性发展障碍（Pervasive Developmental Disorder；简称PDD），是一个与特殊性发展障碍（Specific Developmental Disorders；SDD）相对的名词，专指一组五种与多种基本功能的发展障碍，例如：社会化及沟通能力相关的精神异常。根据DSM-IV诊断标准，广泛性发展障碍包括以下五个类别："Note: An earlier version of this article included text from the public domain source "NINDS Pervasive Developmental Disorders Information Page" at "

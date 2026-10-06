@@ -1,0 +1,786 @@
+# 云启智能知识库 · Agent 端到端评测集（主任务集）
+#
+# 构造原则（设计文档 §5.3）：每条 expected_result 都能回指到某份文档的某一条
+# （见每条任务的 source 字段），期望值 = 该条款里的字面数字/术语，**从文档推导，不拍脑袋**。
+#
+# 事实来源 = 运行中 KB 的 4 份「深圳市云启智能科技有限公司」文档（documents 表 status=ready）：
+#   01_员工手册.md / 02_财务报销制度.txt / 03_考勤管理制度.txt / 04_费用标准对照表.html
+# 每个期望值均已用 POST /knowledge/search 实检索验证「命中片段里确实出现该值」（见 T01 报告）。
+# ⚠️ 不要把 evaluation/fixtures/ 的 4 篇弱电域文档混进来——那是 retrieval_eval 的另一个来源。
+#
+# 分类（6 类，共 40 条）：single_doc_lookup=12 / cross_doc_consistency=8 /
+#   numeric_reasoning=7 / boundary=5 / negative=6 / multi_tool=2
+version: 1
+name: yunqi-agent-v1
+description: 云启智能知识库 · Agent 端到端评测集（规则断言为主，judge 默认关闭）
+defaults:
+  max_iterations: 3          # 覆盖 settings.max_iterations（默认 5，这里收紧省成本）
+  review_threshold: 7
+  use_tools: true
+  run_judge: false           # 规则断言为主，judge 默认关闭以省成本
+  timeout_s: 150
+tasks:
+  # ------------------------------------------------------------------ 单文档事实检索（12）
+  - id: yq-hr-001
+    category: single_doc_lookup
+    difficulty: easy
+    tags: [hr, travel]
+    source: "01_员工手册.md 第 6.2 条（住宿标准表）；04_费用标准对照表.html 一（出差住宿费上限标准）"
+    prompt: "深圳市云启智能科技有限公司的普通员工到北京出差，住宿费上限是每人每晚多少元？请用一句话回答，给出具体数字。"
+    expected_result:
+      contains_all: ["450"]
+      contains_any:
+        - ["450 元", "450元", "每晚 450", "上限 450"]
+      regex: '(?<![0-9])450(?![0-9])'
+    expected_tools:
+      mode: subset
+      any_of: [knowledge_search]
+      collapse_repeats: true
+      allow_extra: true
+    max_steps: 5
+    max_tool_calls: 6
+    max_cost_cny: 0.12
+    max_latency_ms: 120000
+
+  - id: yq-hr-002
+    category: single_doc_lookup
+    difficulty: easy
+    tags: [hr, travel]
+    source: "01_员工手册.md 第 6.2 条（二类城市·普通员工 350 元）；04_费用标准对照表.html 一"
+    prompt: "深圳市云启智能科技有限公司的普通员工到杭州出差，住宿费上限是每人每晚多少元？请给出具体数字。"
+    expected_result:
+      contains_all: ["350"]
+      regex: '(?<![0-9])350(?![0-9])'
+    expected_tools:
+      mode: subset
+      any_of: [knowledge_search]
+    max_steps: 5
+    max_tool_calls: 6
+    max_cost_cny: 0.12
+    max_latency_ms: 120000
+
+  - id: yq-hr-003
+    category: single_doc_lookup
+    difficulty: easy
+    tags: [hr, travel]
+    source: "01_员工手册.md 第 6.4 条（出差伙食补贴）；04_费用标准对照表.html 二"
+    prompt: "深圳市云启智能科技有限公司员工出差期间的伙食补贴标准是每人每天多少元？"
+    expected_result:
+      contains_all: ["100"]
+      contains_any:
+        - ["每人每天 100", "100 元/人/天", "100元/人/天", "每天 100 元", "每天100元"]
+      regex: '(?<![0-9])100(?![0-9])'
+    expected_tools:
+      mode: subset
+      any_of: [knowledge_search]
+    max_steps: 5
+    max_tool_calls: 6
+    max_cost_cny: 0.12
+    max_latency_ms: 120000
+
+  - id: yq-hr-004
+    category: single_doc_lookup
+    difficulty: easy
+    tags: [hr, payroll]
+    source: "01_员工手册.md 第 5.1 条（发薪日）；04_费用标准对照表.html 七"
+    prompt: "深圳市云启智能科技有限公司每月几号发放上一个自然月的工资？"
+    expected_result:
+      contains_all: ["15"]
+      contains_any:
+        - ["每月 15 日", "每月15日", "15 日", "15日"]
+    expected_tools:
+      mode: subset
+      any_of: [knowledge_search]
+    max_steps: 5
+    max_tool_calls: 6
+    max_cost_cny: 0.12
+    max_latency_ms: 120000
+
+  - id: yq-hr-005
+    category: single_doc_lookup
+    difficulty: medium
+    tags: [hr, company]
+    source: "01_员工手册.md 第 1.2 条（公司主体）"
+    prompt: "深圳市云启智能科技有限公司的统一社会信用代码是多少？"
+    expected_result:
+      contains_all: ["91440300MA5F1A2B3C"]
+    expected_tools:
+      mode: subset
+      any_of: [knowledge_search]
+    max_steps: 5
+    max_tool_calls: 6
+    max_cost_cny: 0.12
+    max_latency_ms: 120000
+
+  - id: yq-hr-006
+    category: single_doc_lookup
+    difficulty: medium
+    tags: [hr, leave]
+    source: "01_员工手册.md 第 4.2 条（年休假）；04_费用标准对照表.html 七"
+    prompt: "深圳市云启智能科技有限公司的员工，累计工作满 10 年不满 20 年的，年休假是多少天？"
+    expected_result:
+      contains_all: ["10"]
+      contains_any:
+        - ["10 天", "10天"]
+      regex: '(?<![0-9])10(?![0-9])'
+    expected_tools:
+      mode: subset
+      any_of: [knowledge_search]
+    max_steps: 5
+    max_tool_calls: 6
+    max_cost_cny: 0.12
+    max_latency_ms: 120000
+
+  - id: yq-fin-001
+    category: single_doc_lookup
+    difficulty: medium
+    tags: [finance, travel]
+    source: "02_财务报销制度.txt 第 5.3 条（城市间交通费）；04_费用标准对照表.html 二"
+    prompt: "深圳市云启智能科技有限公司主管级及以下员工乘坐飞机的单程票面价上限是多少元？"
+    expected_result:
+      contains_all: ["1500"]
+      regex: '(?<![0-9])1500(?![0-9])'
+    expected_tools:
+      mode: subset
+      any_of: [knowledge_search]
+    max_steps: 5
+    max_tool_calls: 6
+    max_cost_cny: 0.12
+    max_latency_ms: 120000
+
+  - id: yq-fin-002
+    category: single_doc_lookup
+    difficulty: easy
+    tags: [finance, entertainment]
+    source: "02_财务报销制度.txt 第 4.3 条（业务招待费）；04_费用标准对照表.html 三"
+    prompt: "深圳市云启智能科技有限公司业务招待国内客户的人均标准上限是多少元？"
+    expected_result:
+      contains_all: ["200"]
+      regex: '(?<![0-9])200(?![0-9])'
+    expected_tools:
+      mode: subset
+      any_of: [knowledge_search]
+    max_steps: 5
+    max_tool_calls: 6
+    max_cost_cny: 0.12
+    max_latency_ms: 120000
+
+  - id: yq-fin-003
+    category: single_doc_lookup
+    difficulty: easy
+    tags: [finance, telecom]
+    source: "02_财务报销制度.txt 第 4.4 条（通讯费补贴）；04_费用标准对照表.html 四"
+    prompt: "深圳市云启智能科技有限公司主管级员工的通讯费补贴是每月多少元？"
+    expected_result:
+      contains_all: ["150"]
+      regex: '(?<![0-9])150(?![0-9])'
+    expected_tools:
+      mode: subset
+      any_of: [knowledge_search]
+    max_steps: 5
+    max_tool_calls: 6
+    max_cost_cny: 0.12
+    max_latency_ms: 120000
+
+  - id: yq-fin-004
+    category: single_doc_lookup
+    difficulty: medium
+    tags: [finance, approval]
+    source: "02_财务报销制度.txt 第 2.3 条（审批权限）"
+    prompt: "深圳市云启智能科技有限公司单笔金额不超过 2000 元的报销，需要哪几级签字审批？"
+    expected_result:
+      contains_all: ["直属主管", "财务部"]
+    expected_tools:
+      mode: subset
+      any_of: [knowledge_search]
+    max_steps: 5
+    max_tool_calls: 6
+    max_cost_cny: 0.12
+    max_latency_ms: 120000
+
+  - id: yq-att-001
+    category: single_doc_lookup
+    difficulty: easy
+    tags: [attendance]
+    source: "03_考勤管理制度.txt 第 2.3 条（补卡规则）；04_费用标准对照表.html 五"
+    prompt: "深圳市云启智能科技有限公司员工每人每月补卡次数不得超过多少次？"
+    expected_result:
+      contains_all: ["3"]
+      contains_any:
+        - ["3 次", "3次"]
+    expected_tools:
+      mode: subset
+      any_of: [knowledge_search]
+    max_steps: 5
+    max_tool_calls: 6
+    max_cost_cny: 0.12
+    max_latency_ms: 120000
+
+  - id: yq-att-002
+    category: single_doc_lookup
+    difficulty: easy
+    tags: [attendance, overtime]
+    source: "03_考勤管理制度.txt 第 5.6 条（加班时长上限）；04_费用标准对照表.html 五"
+    prompt: "深圳市云启智能科技有限公司员工每月加班时长原则上不超过多少小时？"
+    expected_result:
+      contains_all: ["36"]
+      regex: '(?<![0-9])36(?![0-9])'
+    expected_tools:
+      mode: subset
+      any_of: [knowledge_search]
+    max_steps: 5
+    max_tool_calls: 6
+    max_cost_cny: 0.12
+    max_latency_ms: 120000
+
+  # -------------------------------------------------------------- 跨文档交叉核对（8）
+  - id: yq-cross-001
+    category: cross_doc_consistency
+    difficulty: medium
+    tags: [cross, travel, finance]
+    source: "01_员工手册.md 第 6.5 条（指向财务制度第 5.3 条）+ 02_财务报销制度.txt 第 5.3 条（飞机 1500 元）"
+    prompt: "《员工手册》第 6.5 条说跨城交通标准见《财务报销制度》第 5.3 条。请据此回答：主管级及以下员工乘飞机的单程票面价上限是多少元？"
+    expected_result:
+      contains_all: ["1500"]
+      regex: '(?<![0-9])1500(?![0-9])'
+    expected_tools:
+      mode: subset
+      any_of: [knowledge_search]
+    max_steps: 6
+    max_tool_calls: 8
+    max_cost_cny: 0.15
+    max_latency_ms: 150000
+
+  - id: yq-cross-002
+    category: cross_doc_consistency
+    difficulty: medium
+    tags: [cross, travel]
+    source: "01_员工手册.md 第 5.4 条（差旅补贴见财务制度第 5 章）+ 02_财务报销制度.txt 第 5.2/5.4 条"
+    prompt: "《员工手册》第 5.4 条把出差交通、住宿、伙食补贴标准指向《财务报销制度》第 5 章。据此说明：出差伙食补贴标准是多少，住宿费上限以哪份文件的哪一条为准？"
+    expected_result:
+      contains_all: ["100"]
+      contains_any:
+        - ["员工手册 第 6.2 条", "员工手册第 6.2 条", "《员工手册》第 6.2 条", "第 6.2 条", "第6.2条"]
+    expected_tools:
+      mode: subset
+      any_of: [knowledge_search]
+    max_steps: 6
+    max_tool_calls: 8
+    max_cost_cny: 0.15
+    max_latency_ms: 150000
+
+  - id: yq-cross-003
+    category: cross_doc_consistency
+    difficulty: medium
+    tags: [cross, finance, approval]
+    source: "02_财务报销制度.txt 第 2.2 条（三级签批）+ 第 2.3 条（2000<X≤10000 加部门负责人）"
+    prompt: "深圳市云启智能科技有限公司员工提交一张 5000 元的报销单，按制度需要经过哪些审批层级？请逐级列出。"
+    expected_result:
+      contains_all: ["直属主管", "部门负责人", "财务部"]
+    expected_tools:
+      mode: subset
+      any_of: [knowledge_search]
+    max_steps: 6
+    max_tool_calls: 8
+    max_cost_cny: 0.15
+    max_latency_ms: 150000
+
+  - id: yq-cross-004
+    category: cross_doc_consistency
+    difficulty: medium
+    tags: [cross, travel, approval]
+    source: "01_员工手册.md 第 6.1 条（天数/预算阈值）+ 04_费用标准对照表.html 二"
+    prompt: "深圳市云启智能科技有限公司员工出差，什么情况下除直属主管外还须经部门负责人审批？请给出两个具体阈值。"
+    expected_result:
+      contains_all: ["8000"]
+      contains_any:
+        - ["5 个工作日", "5个工作日"]
+    expected_tools:
+      mode: subset
+      any_of: [knowledge_search]
+    max_steps: 6
+    max_tool_calls: 8
+    max_cost_cny: 0.15
+    max_latency_ms: 150000
+
+  - id: yq-cross-005
+    category: cross_doc_consistency
+    difficulty: medium
+    tags: [cross, hr, leave]
+    source: "01_员工手册.md 第 4.2 条（天数）+ 第 4.3 条（提前量）；04_费用标准对照表.html 七"
+    prompt: "深圳市云启智能科技有限公司员工累计工作满 20 年的年休假天数是多少，申请年休假须提前几个工作日？"
+    expected_result:
+      contains_all: ["15"]
+      contains_any:
+        - ["3 个工作日", "3个工作日"]
+    expected_tools:
+      mode: subset
+      any_of: [knowledge_search]
+    max_steps: 6
+    max_tool_calls: 8
+    max_cost_cny: 0.15
+    max_latency_ms: 150000
+
+  - id: yq-cross-006
+    category: cross_doc_consistency
+    difficulty: medium
+    tags: [cross, attendance, overtime]
+    source: "03_考勤管理制度.txt 第 5.4 条（休息日 2 倍）+ 04_费用标准对照表.html 六"
+    prompt: "深圳市云启智能科技有限公司员工在休息日加班且无法安排调休的，按几倍小时工资支付？"
+    expected_result:
+      contains_all: ["2"]
+      contains_any:
+        - ["2 倍", "2倍"]
+    expected_tools:
+      mode: subset
+      any_of: [knowledge_search]
+    max_steps: 6
+    max_tool_calls: 8
+    max_cost_cny: 0.15
+    max_latency_ms: 150000
+
+  - id: yq-cross-007
+    category: cross_doc_consistency
+    difficulty: medium
+    tags: [cross, finance, telecom]
+    source: "02_财务报销制度.txt 第 4.4 条 + 04_费用标准对照表.html 四（总监级 300）"
+    prompt: "深圳市云启智能科技有限公司总监级及以上员工的通讯费补贴是每月多少元？"
+    expected_result:
+      contains_all: ["300"]
+      regex: '(?<![0-9])300(?![0-9])'
+    expected_tools:
+      mode: subset
+      any_of: [knowledge_search]
+    max_steps: 6
+    max_tool_calls: 8
+    max_cost_cny: 0.15
+    max_latency_ms: 150000
+
+  - id: yq-cross-008
+    category: cross_doc_consistency
+    difficulty: medium
+    tags: [cross, finance, travel]
+    source: "02_财务报销制度.txt 第 5.5 条（单次超过 200 元注明事由）+ 04_费用标准对照表.html 二"
+    prompt: "深圳市云启智能科技有限公司员工的市内交通费单次超过多少元需要注明事由？深夜因公用车是否受此限制？"
+    expected_result:
+      contains_all: ["200"]
+      regex: '(?<![0-9])200(?![0-9])'
+    expected_tools:
+      mode: subset
+      any_of: [knowledge_search]
+    max_steps: 6
+    max_tool_calls: 8
+    max_cost_cny: 0.15
+    max_latency_ms: 150000
+
+  # -------------------------------------------------------------------- 数值计算（7）
+  - id: yq-num-001
+    category: numeric_reasoning
+    difficulty: medium
+    tags: [numeric, travel]
+    source: "01_员工手册.md 第 6.2 条（一类城市·普通员工 450 元/晚）；计算 3 人 × 2 晚 × 450"
+    prompt: "深圳市云启智能科技有限公司 3 位普通员工一同到北京出差 2 晚（一类城市），按住宿费上限计算，住宿费合计最多可报销多少元？请给出算式与结果。"
+    expected_result:
+      contains_all: ["2700"]
+      regex: '(?<![0-9])2700(?![0-9])'
+    expected_tools:
+      mode: subset
+      any_of: [knowledge_search, calculator]
+      collapse_repeats: true
+      allow_extra: true
+    max_steps: 6
+    max_tool_calls: 8
+    max_cost_cny: 0.15
+    max_latency_ms: 150000
+
+  - id: yq-num-002
+    category: numeric_reasoning
+    difficulty: medium
+    tags: [numeric, travel]
+    source: "01_员工手册.md 第 6.4 条（伙食补贴 100 元/人/天）；计算 4 人 × 5 天 × 100"
+    prompt: "深圳市云启智能科技有限公司 4 位员工到上海出差 5 天，按出差伙食补贴标准（每人每天 100 元包干）计算，伙食补贴合计多少元？"
+    expected_result:
+      contains_all: ["2000"]
+      regex: '(?<![0-9])2000(?![0-9])'
+    expected_tools:
+      mode: subset
+      any_of: [knowledge_search, calculator]
+      collapse_repeats: true
+      allow_extra: true
+    max_steps: 6
+    max_tool_calls: 8
+    max_cost_cny: 0.15
+    max_latency_ms: 150000
+
+  - id: yq-num-003
+    category: numeric_reasoning
+    difficulty: hard
+    tags: [numeric, travel]
+    source: "01_员工手册.md 第 6.2 条（一类城市·主管级 600 元/晚）；计算 2 人 × 3 晚 × 600"
+    prompt: "深圳市云启智能科技有限公司 2 位主管级员工到深圳出差 3 晚（深圳属一类城市），按住宿费上限计算，住宿费合计最多可报销多少元？"
+    expected_result:
+      contains_all: ["3600"]
+      regex: '(?<![0-9])3600(?![0-9])'
+    expected_tools:
+      mode: subset
+      any_of: [knowledge_search, calculator]
+      collapse_repeats: true
+      allow_extra: true
+    max_steps: 7
+    max_tool_calls: 9
+    max_cost_cny: 0.18
+    max_latency_ms: 180000
+
+  - id: yq-num-004
+    category: numeric_reasoning
+    difficulty: hard
+    tags: [numeric, travel]
+    source: "01_员工手册.md 第 6.2 条（二类城市·普通员工 350 元/晚）；计算 5 人 × 4 晚 × 350"
+    prompt: "深圳市云启智能科技有限公司 5 位普通员工到成都出差 4 晚（成都属二类城市），按住宿费上限计算，住宿费合计最多可报销多少元？"
+    expected_result:
+      contains_all: ["7000"]
+      regex: '(?<![0-9])7000(?![0-9])'
+    expected_tools:
+      mode: subset
+      any_of: [knowledge_search, calculator]
+      collapse_repeats: true
+      allow_extra: true
+    max_steps: 7
+    max_tool_calls: 9
+    max_cost_cny: 0.18
+    max_latency_ms: 180000
+
+  - id: yq-num-005
+    category: numeric_reasoning
+    difficulty: medium
+    tags: [numeric, finance, telecom]
+    source: "02_财务报销制度.txt 第 4.4 条（主管级 150 元/月）；计算 150 × 12"
+    prompt: "深圳市云启智能科技有限公司一位主管级员工全年（12 个月）可领取的通讯费补贴合计是多少元？"
+    expected_result:
+      contains_all: ["1800"]
+      regex: '(?<![0-9])1800(?![0-9])'
+    expected_tools:
+      mode: subset
+      any_of: [knowledge_search, calculator]
+      collapse_repeats: true
+      allow_extra: true
+    max_steps: 6
+    max_tool_calls: 8
+    max_cost_cny: 0.15
+    max_latency_ms: 150000
+
+  - id: yq-num-006
+    category: numeric_reasoning
+    difficulty: hard
+    tags: [numeric, attendance, overtime]
+    source: "03_考勤管理制度.txt 第 5.3 条（工作日加班 1.5 倍小时工资）；计算 4 小时 × 1.5 × 50 元"
+    prompt: "已知某员工小时工资为 50 元。按深圳市云启智能科技有限公司考勤制度，其工作日加班 4 小时的加班费是多少元？（工作日加班系数见考勤制度）请给出算式与结果。"
+    expected_result:
+      contains_all: ["300"]
+      regex: '(?<![0-9])300(?![0-9])'
+    expected_tools:
+      mode: subset
+      any_of: [knowledge_search, calculator]
+      collapse_repeats: true
+      allow_extra: true
+    max_steps: 7
+    max_tool_calls: 9
+    max_cost_cny: 0.18
+    max_latency_ms: 180000
+
+  - id: yq-num-007
+    category: numeric_reasoning
+    difficulty: medium
+    tags: [numeric, travel]
+    source: "01_员工手册.md 第 6.4 条（伙食补贴 100 元/人/天）；计算 1 人 × 10 天 × 100"
+    prompt: "深圳市云启智能科技有限公司一位员工连续出差 10 天（每天均满 8 小时），按出差伙食补贴标准，其伙食补贴合计多少元？"
+    expected_result:
+      contains_all: ["1000"]
+      regex: '(?<![0-9])1000(?![0-9])'
+    expected_tools:
+      mode: subset
+      any_of: [knowledge_search, calculator]
+      collapse_repeats: true
+      allow_extra: true
+    max_steps: 6
+    max_tool_calls: 8
+    max_cost_cny: 0.15
+    max_latency_ms: 150000
+
+  # ------------------------------------------------------------------------ 边界（5）
+  - id: yq-bnd-001
+    category: boundary
+    difficulty: hard
+    tags: [boundary, attendance]
+    source: "03_考勤管理制度.txt 第 3.3 条（迟到 30–120 分钟为严重迟到；超过 120 分钟才旷工半天）"
+    prompt: "深圳市云启智能科技有限公司一名员工迟到正好 120 分钟（整）。按考勤制度，这属于哪一档？请明确回答该档位的名称。"
+    expected_result:
+      contains_all: ["严重迟到"]
+    expected_tools:
+      mode: subset
+      any_of: [knowledge_search]
+    max_steps: 6
+    max_tool_calls: 8
+    max_cost_cny: 0.15
+    max_latency_ms: 150000
+    notes: "边界：120 分钟整落在「30 至 120 分钟」档 = 严重迟到，不是旷工半天（旷工需 >120 分钟）"
+
+  - id: yq-bnd-002
+    category: boundary
+    difficulty: hard
+    tags: [boundary, finance, approval]
+    source: "02_财务报销制度.txt 第 2.3 条（单笔 ≤2000 元：直属主管 + 财务部）"
+    prompt: "深圳市云启智能科技有限公司一名员工提交正好 2000 元的报销单。按审批权限表，需要哪几级审批？"
+    expected_result:
+      contains_all: ["直属主管", "财务部"]
+    expected_tools:
+      mode: subset
+      any_of: [knowledge_search]
+    max_steps: 6
+    max_tool_calls: 8
+    max_cost_cny: 0.15
+    max_latency_ms: 150000
+    notes: "边界：≤2000 元含 2000 本身，落在一档，不需部门负责人"
+
+  - id: yq-bnd-003
+    category: boundary
+    difficulty: hard
+    tags: [boundary, finance, approval]
+    source: "02_财务报销制度.txt 第 2.3 条（2000<X≤10000：加部门负责人）"
+    prompt: "深圳市云启智能科技有限公司一名员工提交正好 10000 元的报销单。按审批权限表，需要哪几级审批？"
+    expected_result:
+      contains_all: ["直属主管", "部门负责人", "财务部"]
+    expected_tools:
+      mode: subset
+      any_of: [knowledge_search]
+    max_steps: 6
+    max_tool_calls: 8
+    max_cost_cny: 0.15
+    max_latency_ms: 150000
+    notes: "边界：2000<X≤10000 含 10000 本身，仍落在二档，不需财务总监/总经理"
+
+  - id: yq-bnd-004
+    category: boundary
+    difficulty: medium
+    tags: [boundary, hr, probation]
+    source: "01_员工手册.md 第 2.2 条（一年以上不满三年 → 两个月；三个月以上不满一年 → 一个月）"
+    prompt: "深圳市云启智能科技有限公司与员工签订的劳动合同期限为「三个月以上不满一年」，试用期上限是多长？"
+    expected_result:
+      contains_any:
+        - ["一个月", "1 个月", "1个月"]
+    expected_tools:
+      mode: subset
+      any_of: [knowledge_search]
+    max_steps: 5
+    max_tool_calls: 6
+    max_cost_cny: 0.12
+    max_latency_ms: 120000
+
+  - id: yq-bnd-005
+    category: boundary
+    difficulty: medium
+    tags: [boundary, attendance]
+    source: "03_考勤管理制度.txt 第 3.3 条（迟到 30 分钟以内计为迟到，不计旷工）"
+    prompt: "深圳市云启智能科技有限公司一名员工迟到 20 分钟。按考勤制度，这算迟到还是旷工？请明确回答。"
+    expected_result:
+      contains_all: ["迟到"]
+      contains_any:
+        - ["不计旷工", "不算旷工", "不属于旷工", "不是旷工", "未构成旷工", "不计为旷工"]
+    expected_tools:
+      mode: subset
+      any_of: [knowledge_search]
+    max_steps: 5
+    max_tool_calls: 6
+    max_cost_cny: 0.12
+    max_latency_ms: 120000
+
+  # -------------------------------------------------------------------- 负样本（6）
+  # 全部经检索确认：KB 4 份文档与检索命中片段里均无相关内容 → 期望如实答「查不到」。
+  - id: yq-neg-001
+    category: negative
+    difficulty: medium
+    tags: [negative, no_fabrication]
+    source: "知识库未收录（对照组）：4 份文档均无「食堂/餐费补助」任何字样（已检索核验）"
+    prompt: "深圳市云启智能科技有限公司的员工食堂每天的餐费补助标准是多少元？如果知识库中没有相关信息，请如实说明，不要编造数字。"
+    expected_result:
+      contains_any:
+        - ["查不到", "未收录", "未提及", "没有找到", "未找到", "资料中没有", "无法确认", "未包含", "知识库中", "没有相关", "无相关", "不包含", "没有收录", "未见", "无法找到", "未提供", "没有提及", "查无"]
+      # 编造护栏①（高概率具体值）：常被编造为 15/20/25/30/50 元/天
+      not_contains: ["30 元", "30元", "25 元", "25元", "20 元", "20元", "15 元", "15元", "50 元", "50元"]
+      # 编造护栏②（形态）：任意「带单位的金额」或「百分比」都视为编造
+      not_contains_regex:
+        - '\d+(?:\.\d+)?\s*(?:元|万元|块钱|块)'
+        - '\d+(?:\.\d+)?\s*%'
+    expect_no_fabrication: true
+    expected_tools:
+      mode: subset
+      any_of: [knowledge_search]
+      allow_extra: true
+    max_steps: 5
+    max_tool_calls: 6
+    max_cost_cny: 0.12
+    max_latency_ms: 120000
+
+  - id: yq-neg-002
+    category: negative
+    difficulty: medium
+    tags: [negative, no_fabrication]
+    source: "知识库未收录（对照组）：4 份文档均无「股票代码/上市」任何字样（已检索核验）"
+    prompt: "深圳市云启智能科技有限公司的股票代码是多少？如果知识库中没有相关信息，请如实说明。"
+    expected_result:
+      contains_any:
+        - ["查不到", "未收录", "未提及", "没有找到", "未找到", "资料中没有", "无法确认", "未包含", "知识库中", "没有相关", "无相关", "不包含", "没有收录", "未见", "无法找到", "未提供", "没有提及", "查无"]
+      # 编造护栏①（高概率具体值）：常被编造的知名 A 股代码形态
+      not_contains: ["002594", "300750", "000001", "600519", "601398"]
+      # 编造护栏②（形态）：任意独立的 6 位代码（如 002594 / 300750）
+      not_contains_regex:
+        - '(?<!\d)\d{6}(?!\d)'
+    expect_no_fabrication: true
+    expected_tools:
+      mode: subset
+      any_of: [knowledge_search]
+      allow_extra: true
+    max_steps: 5
+    max_tool_calls: 6
+    max_cost_cny: 0.12
+    max_latency_ms: 120000
+
+  - id: yq-neg-003
+    category: negative
+    difficulty: medium
+    tags: [negative, no_fabrication]
+    source: "知识库未收录（对照组）：4 份文档均无「健身房/瑜伽室」任何字样（已检索核验）"
+    prompt: "深圳市云启智能科技有限公司员工健身房的开放时间是几点到几点？如果知识库中没有相关信息，请如实说明。"
+    expected_result:
+      contains_any:
+        - ["查不到", "未收录", "未提及", "没有找到", "未找到", "资料中没有", "无法确认", "未包含", "知识库中", "没有相关", "无相关", "不包含", "没有收录", "未见", "无法找到", "未提供", "没有提及", "查无"]
+      # 编造护栏①（高概率具体值）：常被编造的开放时段
+      not_contains: ["07:00", "08:00", "09:00", "18:00", "21:00", "22:00", "9:00", "8:00"]
+      # 编造护栏②（形态）：任意「HH:MM」时刻，或「X 点到 Y 点」中文时段
+      not_contains_regex:
+        - '\d{1,2}\s*[:：]\s*\d{2}'
+        - '\d{1,2}\s*点\s*(?:到|至|-|—)\s*\d{1,2}\s*点'
+    expect_no_fabrication: true
+    expected_tools:
+      mode: subset
+      any_of: [knowledge_search]
+      allow_extra: true
+    max_steps: 5
+    max_tool_calls: 6
+    max_cost_cny: 0.12
+    max_latency_ms: 120000
+
+  - id: yq-neg-004
+    category: negative
+    difficulty: medium
+    tags: [negative, no_fabrication]
+    source: "知识库未收录（对照组）：4 份文档均无「子女教育/幼儿园」任何字样（已检索核验）"
+    prompt: "深圳市云启智能科技有限公司给员工的子女教育补贴或幼儿园报销标准是多少？如果知识库中没有相关信息，请如实说明。"
+    expected_result:
+      contains_any:
+        - ["查不到", "未收录", "未提及", "没有找到", "未找到", "资料中没有", "无法确认", "未包含", "知识库中", "没有相关", "无相关", "不包含", "没有收录", "未见", "无法找到", "未提供", "没有提及", "查无"]
+      # 编造护栏①（高概率具体值）：常被编造的补贴/报销金额
+      not_contains: ["5000 元", "5000元", "1000 元", "1000元", "500 元", "500元", "2000 元", "2000元"]
+      # 编造护栏②（形态）：任意「带单位的金额」或「百分比」（报销比例）
+      not_contains_regex:
+        - '\d+(?:\.\d+)?\s*(?:元|万元|块钱|块)'
+        - '\d+(?:\.\d+)?\s*%'
+    expect_no_fabrication: true
+    expected_tools:
+      mode: subset
+      any_of: [knowledge_search]
+      allow_extra: true
+    max_steps: 5
+    max_tool_calls: 6
+    max_cost_cny: 0.12
+    max_latency_ms: 120000
+
+  - id: yq-neg-005
+    category: negative
+    difficulty: medium
+    tags: [negative, no_fabrication]
+    source: "知识库未收录（对照组）：4 份文档均无「停车/车位」任何字样（已检索核验）"
+    prompt: "深圳市云启智能科技有限公司员工每月的停车费补贴标准是多少元？如果知识库中没有相关信息，请如实说明。"
+    expected_result:
+      contains_any:
+        - ["查不到", "未收录", "未提及", "没有找到", "未找到", "资料中没有", "无法确认", "未包含", "知识库中", "没有相关", "无相关", "不包含", "没有收录", "未见", "无法找到", "未提供", "没有提及", "查无"]
+      # 编造护栏①（高概率具体值）：常被编造的月度停车补贴
+      not_contains: ["300 元", "300元", "200 元", "200元", "500 元", "500元", "150 元", "150元"]
+      # 编造护栏②（形态）：任意「带单位的金额」或「百分比」
+      not_contains_regex:
+        - '\d+(?:\.\d+)?\s*(?:元|万元|块钱|块)'
+        - '\d+(?:\.\d+)?\s*%'
+    expect_no_fabrication: true
+    expected_tools:
+      mode: subset
+      any_of: [knowledge_search]
+      allow_extra: true
+    max_steps: 5
+    max_tool_calls: 6
+    max_cost_cny: 0.12
+    max_latency_ms: 120000
+
+  - id: yq-neg-006
+    category: negative
+    difficulty: medium
+    tags: [negative, no_fabrication]
+    source: "知识库未收录（对照组）：4 份文档均无「竞争对手/竞对/友商」任何字样（已检索核验）"
+    prompt: "深圳市云启智能科技有限公司的主要竞争对手是哪些公司？如果知识库中没有相关信息，请如实说明，不要编造公司名称。"
+    expected_result:
+      contains_any:
+        - ["查不到", "未收录", "未提及", "没有找到", "未找到", "资料中没有", "无法确认", "未包含", "知识库中", "没有相关", "无相关", "不包含", "没有收录", "未见", "无法找到", "未提供", "没有提及", "查无"]
+      # 编造护栏①：无法枚举公司名，留空（写死几个候选只会让人误以为覆盖全）。
+      not_contains: []
+      # 编造护栏②（形态）：出现「竞争对手/竞对/友商/竞争者 + …（公司后缀）」即视为编造具体主体。
+      not_contains_regex:
+        - '(?:竞争对手|竞对|友商|竞争者)[^。；;\n]{0,24}?(?:有限公司|股份有限公司|集团|科技公司|科技有限公司)'
+    expect_no_fabrication: true
+    expected_tools:
+      mode: subset
+      any_of: [knowledge_search]
+      allow_extra: true
+    max_steps: 5
+    max_tool_calls: 6
+    max_cost_cny: 0.12
+    max_latency_ms: 120000
+    notes: "公司名无法枚举：形态护栏只能抓『关键词+公司后缀』，残余风险靠免责措辞 + 人工/judge 复核"
+
+  # ---------------------------------------------------------------- 多工具协作（2）
+  - id: yq-mt-001
+    category: multi_tool
+    difficulty: hard
+    tags: [multi_tool, numeric, travel]
+    source: "01_员工手册.md 第 6.2 条（一类城市·普通员工 450 元/晚）；计算 3 人 × 2 晚 × 450"
+    prompt: "请先用知识库检索深圳云启智能科技的出差住宿标准，再计算：3 位普通员工一同到北京出差 2 晚，住宿费上限合计是多少元？请给出算式与结果。"
+    expected_result:
+      contains_all: ["2700"]
+      regex: '(?<![0-9])2700(?![0-9])'
+    expected_tools:
+      mode: exact_sequence
+      sequence: [knowledge_search, calculator]
+      collapse_repeats: true
+      allow_extra: false
+    max_steps: 7
+    max_tool_calls: 9
+    max_cost_cny: 0.20
+    max_latency_ms: 180000
+    notes: "严格顺序断言：先检索再计算；连续重复工具会被折叠"
+
+  - id: yq-mt-002
+    category: multi_tool
+    difficulty: hard
+    tags: [multi_tool, numeric, travel]
+    source: "01_员工手册.md 第 6.4 条（伙食补贴 100 元/人/天）；计算 4 人 × 5 天 × 100"
+    prompt: "请先查阅出差伙食补贴标准，再计算：4 位员工到上海出差 5 天，伙食补贴合计多少元？请给出算式与结果。"
+    expected_result:
+      contains_all: ["2000"]
+      regex: '(?<![0-9])2000(?![0-9])'
+    expected_tools:
+      mode: subset
+      any_of: [knowledge_search, calculator]
+      collapse_repeats: true
+      allow_extra: true
+    max_steps: 7
+    max_tool_calls: 9
+    max_cost_cny: 0.20
+    max_latency_ms: 180000

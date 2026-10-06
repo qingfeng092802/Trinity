@@ -1,0 +1,1 @@
+触手冠动物（Lophophorata），一切具有触手冠（口周围成扇形排列的一圈具纤毛之触手）的无脊椎动物。包括苔藓动物门（Bryozoa）、腕足动物门（Brachiopoda）、帚形动物门（Phoronida）。主要靠纤毛运动时将带有食物粒子的水流送入口中来摄取养分。与担轮动物（Trochozoa）缩合而成冠轮动物总门。包括传统上的輭体动物门（Mollusca）、环节动物门（Annelida）、纽形动物门（Nemertea）、星虫动物门（Sipunculida）以及触手冠动物。此外根据18S rRNA序列，轮形动物门（Rotifera）和新近发现的环口动物门（Cycliophora）也很可能属于冠轮动物。
