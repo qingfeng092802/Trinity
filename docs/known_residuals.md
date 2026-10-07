@@ -404,6 +404,15 @@ grep -c "^\s*run:" .github/workflows/ci.yml   # 2（一条装依赖、一条跑�
 
 ---
 
+### G-8 全量跑 pytest 偶发一条集成用例 setup ERROR（P2，flaky 登记）
+
+**现象**：全量 `pytest tests` 约 1/3 的跑次里，`tests/integration/test_api_agent_options.py::test_三档预设都在响应里且带得出换算` 在 **setup 阶段**报 ERROR；同一条用例**单跑必过**，全量重跑也过。CI 已实际观察到同一棵树一次绿一次红（树 `ecfcdb3e`：`cbdda2f` 绿、`08fda04` 红 —— force push 重写历史前后内容一字不差）。
+**判据**：单独跑 `.venv/Scripts/python -m pytest "tests/integration/test_api_agent_options.py::test_三档预设都在响应里且带得出换算" -q` 必过；全量跑到 100% 且 summary 里仅此一条 ERROR 即复现。
+**影响 · 为什么现在不动**：ERROR 出在 `api_env` fixture 的启动链（`_start_client` 里 lifespan 起队列 + 0.1s 心跳线程，疑为启动竞态），不是断言失败；ERROR 计数为 0 时全量 100% 通过，不影响任何交付结论，也证明了它的非确定性。
+**什么时候动怎么动**：给 `api_env` 的 lifespan 启动加确定性就绪等待（轮询 `/health` 后再 yield），或引入 `pytest-rerunfailures` 给集成用例挂 reruns=1。修复判据：连续 10 次全量 0 ERROR，CI 连续 10 次 run 全绿。
+
+---
+
 ## H · 计量口径：一次任务的「耗时」与「钱」
 
 ### H-1 轨迹页的「总耗时」把节点 span 和单步耗时加了两遍（P1，**未关闭**）
