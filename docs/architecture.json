@@ -1,0 +1,73 @@
+{
+  "schema_version": 1,
+  "diagram_type": "architecture",
+  "meta": {
+    "title": "Trinity 多 Agent 协作平台架构（阶段 0 基线）",
+    "locale": "zh-CN",
+    "quality_profile": "showcase"
+  },
+  "components": [
+    { "id": "ui", "type": "frontend", "label": "Streamlit 控制台", "sublabel": "4 个页面", "pos": [40, 70], "size": [130, 72], "tag": "阶段 4" },
+    { "id": "graph", "type": "backend", "label": "LangGraph 编排", "sublabel": "state + conditions", "pos": [215, 70], "size": [150, 72] },
+    { "id": "planner", "type": "backend", "label": "Planner", "sublabel": "任务拆解为 3-5 步", "pos": [430, 70], "size": [150, 72] },
+    { "id": "executor", "type": "backend", "label": "Executor", "sublabel": "工具调用 / 生成答案", "pos": [650, 70], "size": [150, 72] },
+    { "id": "reviewer", "type": "backend", "label": "Reviewer", "sublabel": "质量门禁 0-10 分", "pos": [870, 70], "size": [150, 72] },
+
+    { "id": "redis", "type": "database", "label": "Redis", "sublabel": "运行态缓存 · 断点续跑", "pos": [215, 280], "size": [150, 68] },
+    { "id": "llm", "type": "backend", "label": "LLM 适配层", "sublabel": "invoke / invoke_json", "pos": [430, 280], "size": [170, 68] },
+    { "id": "tools", "type": "backend", "label": "工具注册表", "sublabel": "registry + sandbox", "pos": [630, 280], "size": [170, 68] },
+    { "id": "trace", "type": "database", "label": "Trace 存储", "sublabel": "内存 + SQLite 双写", "pos": [910, 280], "size": [170, 68] },
+
+    { "id": "deepseek", "type": "external", "label": "DeepSeek API", "sublabel": "OpenAI 兼容端点", "pos": [430, 440], "size": [170, 68] },
+    { "id": "workspace", "type": "database", "label": "沙箱工作区", "sublabel": "data/workspace", "pos": [630, 440], "size": [170, 68] },
+    { "id": "judge", "type": "backend", "label": "LLM Judge", "sublabel": "score / grade / issues", "pos": [910, 440], "size": [170, 68] }
+  ],
+  "boundaries": [
+    { "kind": "region", "label": "LangGraph 编排状态机", "wraps": ["planner", "executor", "reviewer"] },
+    { "kind": "security-group", "label": "沙箱执行边界", "wraps": ["tools", "workspace"] },
+    { "kind": "region", "label": "可观测与评估", "wraps": ["trace", "judge"] }
+  ],
+  "connections": [
+    { "id": "submit-task", "from": "ui", "to": "graph", "label": "提交任务", "variant": "emphasis" },
+    { "id": "start-plan", "from": "graph", "to": "planner", "label": "START" },
+    { "id": "plan-to-exec", "from": "planner", "to": "executor" },
+    { "id": "exec-to-review", "from": "executor", "to": "reviewer" },
+    { "id": "retry-loop", "from": "reviewer", "to": "executor", "label": "未通过 · 重做", "variant": "dashed", "fromSide": "bottom", "toSide": "bottom" },
+    { "id": "cache-resume", "from": "graph", "to": "redis", "label": "运行态快照", "variant": "dashed", "labelAt": [290, 211] },
+    { "id": "call-llm", "from": "planner", "to": "llm", "label": "invoke_json", "fromSide": "bottom", "toSide": "top", "labelAt": [505, 211] },
+    { "id": "call-tool", "from": "executor", "to": "tools", "label": "call_tool", "fromSide": "bottom", "toSide": "top", "labelAt": [725, 211] },
+    { "id": "emit-trace", "from": "reviewer", "to": "trace", "label": "埋点 trace_step", "fromSide": "bottom", "toSide": "top", "labelAt": [945, 211] },
+    { "id": "chat-completions", "from": "llm", "to": "deepseek", "label": "chat.completions", "labelAt": [515, 394] },
+    { "id": "sandbox-io", "from": "tools", "to": "workspace", "label": "受限读写", "labelAt": [715, 394] },
+    { "id": "score-run", "from": "trace", "to": "judge", "label": "轨迹 + 评分", "labelAt": [995, 394] }
+  ],
+  "cards": [
+    {
+      "dot": "cyan",
+      "title": "编排与角色",
+      "items": [
+        "planner → executor → reviewer 单向主链路，reviewer 未通过则回退 executor",
+        "迭代上限 MAX_ITERATIONS=5，超过即强制结束，避免死循环",
+        "enable_hitl 开启后，danger_level=high 的工具调用需人工确认"
+      ]
+    },
+    {
+      "dot": "emerald",
+      "title": "能力层（三角色共用）",
+      "items": [
+        "LLMAdapter 统一 DeepSeek / OpenAI 兼容调用，指数退避重试",
+        "invoke_json：抽取 → Pydantic 校验 → 带错误回灌重试 → 兜底异常",
+        "工具注册表从类型注解自动生成 JSON Schema，子进程 + 超时沙箱执行"
+      ]
+    },
+    {
+      "dot": "violet",
+      "title": "可观测与评估",
+      "items": [
+        "所有节点入口与出口统一埋点，trace 记录含 token 与成本",
+        "LLM Judge 产出 score / grade / issues / suggestions",
+        "run_eval 批量跑 50 条评测集，输出完成率、耗时、成本、工具成功率"
+      ]
+    }
+  ]
+}

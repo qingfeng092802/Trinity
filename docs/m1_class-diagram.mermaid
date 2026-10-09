@@ -1,0 +1,164 @@
+%% M1 类图（摘自 docs/m1_design.md §3.3）
+%% 渲染：https://mermaid.live 或任意 Mermaid 编辑器
+classDiagram
+    class QueueItem {
+        +str task_id
+        +str task
+        +int max_iterations
+        +int review_threshold
+        +bool use_tools
+        +bool run_judge
+        +str difficulty
+        +float submitted_at
+        +CancelToken cancel
+    }
+
+    class CancelToken {
+        +str task_id
+        +Event event
+        +float started_at
+        +is_canceled() bool
+        +mark_started() None
+    }
+
+    class CancelRegistry {
+        -dict _tokens
+        -Lock _lock
+        +register(task_id) CancelToken
+        +get(task_id) CancelToken
+        +pop(task_id) None
+    }
+
+    class TaskQueue {
+        -Queue _pending
+        -deque _waiting
+        -dict _running
+        -Semaphore _slots
+        -Executor _pool
+        -CancelRegistry _cancel
+        -EventBus _bus
+        -TaskWorker _worker
+        +start() None
+        +stop() None
+        +submit(item) int
+        +queue_position(task_id) int
+        +stats() dict
+        -dispatch() None
+    }
+
+    class TaskWorker {
+        -Database database
+        -CacheFacade cache
+        -TraceStore traces
+        -EventBus bus
+        -RunnerFactory factory
+        +run(item) None
+        -emit_node(item, node, update, seq) None
+        -emit_terminal(item, status, payload) None
+    }
+
+    class EventBus {
+        -dict _subs
+        -Loop _loop
+        +attach_loop(loop) None
+        +subscribe(task_id) Queue
+        +unsubscribe(task_id, q) None
+        +publish(event) None
+    }
+
+    class StreamEvent {
+        +str task_id
+        +str name
+        +int seq
+        +dict data
+    }
+
+    class RunnerFactory {
+        <<callable>>
+        +build(item) WorkflowRunner
+    }
+
+    class ApiError {
+        +ErrorCode code
+        +str message
+        +int status
+    }
+
+    class ErrorCode {
+        <<enumeration>>
+        task_not_found
+        task_id_conflict
+        queue_full
+        task_already_finished
+        tool_not_found
+        unauthorized
+        peak_blocked
+        invalid_request
+        internal_error
+    }
+
+    class TaskSubmitRequest {
+        +str task
+        +str task_id
+        +bool use_tools
+        +int max_iterations
+        +int review_threshold
+        +bool run_judge
+        +str difficulty
+    }
+
+    class TaskAcceptedResponse {
+        +str task_id
+        +str status
+        +int queue_position
+        +datetime submitted_at
+        +float estimated_cost_cny
+        +bool peak_pricing
+        +float price_multiplier
+        +list warnings
+    }
+
+    class TaskView {
+        +str task_id
+        +str status
+        +float cost
+        +TaskProgress progress
+        +TaskQueueInfo queue
+        +TaskError error
+    }
+
+    class Database {
+        +mark_running(task_id) bool
+        +mark_terminal(task_id) bool
+        +mark_canceled(task_id) bool
+        +save_task() TaskRecord
+    }
+
+    class CacheFacade {
+        +save_progress(task_id, data) bool
+        +load_progress(task_id) dict
+        +drop_progress(task_id) bool
+    }
+
+    class WorkflowRunner {
+        +stream(task, task_id) Iterator
+    }
+
+    TaskQueue "1" *-- "1" CancelRegistry : 持有
+    TaskQueue "1" *-- "1" TaskWorker : 持有
+    TaskQueue "1" o-- "0..*" QueueItem : 排队与运行
+    QueueItem "1" *-- "1" CancelToken : 携带
+    CancelRegistry "1" o-- "0..*" CancelToken : 登记
+    TaskQueue "1" --> "1" EventBus : 发布事件
+    TaskWorker "1" --> "1" EventBus : 发布事件
+    TaskWorker "1" --> "1" Database : CAS 写状态
+    TaskWorker "1" --> "1" CacheFacade : 写进度
+    TaskWorker "1" --> "1" RunnerFactory : 每任务建编排器
+    RunnerFactory ..> WorkflowRunner : 构造
+    TaskWorker ..> StreamEvent : 产生
+    EventBus "1" o-- "0..*" StreamEvent : 分发
+    TaskQueue ..> ApiError : 队列满时抛出
+    ApiError --> ErrorCode : 使用
+    TaskSubmitRequest ..> QueueItem : 转成
+    QueueItem ..> TaskAcceptedResponse : 受理后返回
+    QueueItem ..> TaskView : 落库后查询得到

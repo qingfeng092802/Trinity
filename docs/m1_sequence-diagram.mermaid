@@ -1,0 +1,185 @@
+%% M1 时序图合集（摘自 docs/m1_design.md §4）
+%% 四张图依次粘贴到 https://mermaid.live 即可渲染
+
+%% ================= 图 1：提交任务 → 落终态全链路 =================
+sequenceDiagram
+    autonumber
+    participant C as 客户端
+    participant R as TasksRouter（loop 线程）
+    participant Q as TaskQueue
+    participant DB as Database（SQLite）
+    participant P as 线程池 worker
+    participant W as TaskWorker
+    participant F as WorkflowRunner
+    participant B as EventBus
+    participant S as SSE 订阅者
+
+    C->>R: POST /tasks（TaskSubmitRequest）
+    R->>R: 校验 task 非空、生成 task_id、读计价时段
+    R->>DB: get_task(task_id) 判重
+    alt task_id 已存在
+        R-->>C: 409 task_id_conflict
+    else 新任务
+        R->>DB: INSERT tasks（status=queued）
+        R->>Q: submit(QueueItem)
+        Q->>Q: CancelRegistry.register 建 Event
+        Q->>Q: pending.put_nowait + waiting.append
+        alt 队列已满
+            Q-->>R: ApiError queue_full
+            R->>DB: mark_canceled（回滚为 canceled）
+            R-->>C: 429 + Retry-After 5
+        else 受理
+            Q-->>R: queue_position
+            R-->>C: 201 TaskAcceptedResponse（不等待执行）
+        end
+    end
+
+    Note over Q,P: dispatcher 协程：先 acquire 槽位（上限 3），再从队列取任务
+    Q->>P: loop.run_in_executor(_run_item, item)
+    P->>W: run(item)
+    W->>DB: mark_running（CAS queued→running）
+    alt CAS 失败（已被取消）
+        W-->>P: 直接返回，零 LLM 调用
+    else CAS 成功
+        W->>W: cancel.mark_started()
+        W->>B: publish(node 事件 seq=0 之前先 publish 一次 running 快照)
+        W->>F: stream(task, task_id)
+        loop 每个节点增量
+            F-->>W: yield (node, update)
+            W->>W: sanitize_update（剔 messages、截断）
+            W->>B: publish(StreamEvent node, seq++)
+            B-->>S: 经 loop 分发到订阅队列
+            W->>W: 缓存 save_progress
+            alt cancel.event 已置位
+                W->>W: break（丢弃结果，不写终态）
+            end
+        end
+        W->>W: persist_terminal：TaskOutcome.from_state + save
+        W->>DB: mark_terminal（CAS running→done/aborted/failed）
+        W->>B: publish(done / failed, seq++）
+        B-->>S: 终态事件
+    end
+    W->>Q: call_soon_threadsafe 清理 _running
+    C->>R: GET /tasks/{id}
+    R->>DB: get_task
+    R->>DB: 读缓存 progress
+    R-->>C: 200 TaskView
+
+
+%% ================= 图 2：SSE 订阅与跨线程事件分发 =================
+sequenceDiagram
+    autonumber
+    participant C as 客户端
+    participant R as StreamRoute（loop 线程）
+    participant B as EventBus
+    participant Qs as 订阅队列 asyncio.Queue
+    participant P as worker 线程
+    participant DB as Database
+
+    C->>R: GET /tasks/{id}/stream
+    R->>DB: get_task(task_id)
+    alt 任务不存在
+        R-->>C: 404 JSON（必须在建流之前返回）
+    else 存在
+        R->>B: subscribe(task_id)
+        B-->>R: 新建 asyncio.Queue
+        R-->>C: 200 text/event-stream（含 X-Accel-Buffering no）
+        R->>C: retry 3000
+        R->>C: id N / event snapshot（含当前 progress）
+        alt 连接时已是终态
+            R->>C: id N+1 / event done 或 failed 或 canceled
+            R->>B: unsubscribe
+            R->>C: 关闭连接（不挂起）
+        else 进行中
+            loop 直到终态或断连
+                par 等待事件
+                    R->>Qs: await wait_for(q.get(), heartbeat)
+                and 等待节点
+                    P->>B: publish(StreamEvent) 经 call_soon_threadsafe
+                    B->>Qs: put_nowait（在 loop 线程扇出）
+                end
+                alt 拿到事件
+                    R->>C: id seq / event name / data
+                    opt 是终态事件
+                        R->>B: unsubscribe
+                        R->>C: 关闭连接
+                    end
+                else wait_for 超时
+                    R->>R: 检查 request.is_disconnected()
+                    alt 客户端已断开
+                        R->>B: unsubscribe
+                        R->>R: 退出（任务不受影响，继续跑）
+                    else 仍连接
+                        R->>C: id seq / event heartbeat
+                    end
+                end
+            end
+        end
+    end
+
+
+%% ================= 图 3：取消任务（queued / running 两条分支） =================
+sequenceDiagram
+    autonumber
+    participant C as 客户端
+    participant R as CancelRoute（loop 线程）
+    participant G as CancelRegistry
+    participant DB as Database
+    participant B as EventBus
+    participant P as worker 线程
+    participant F as WorkflowRunner
+
+    C->>R: POST /tasks/{id}/cancel
+    R->>DB: get_task(task_id)
+    alt 不存在
+        R-->>C: 404 task_not_found
+    else 存在
+        R->>G: token = get(task_id)
+        R->>G: token.event.set()  （先置位，让 worker 尽快停）
+        R->>DB: mark_canceled（CAS：status IN (queued, running) → canceled）
+        alt 影响行数 0
+            R-->>C: 409 task_already_finished
+        else 影响行数 1
+            R->>B: publish(canceled 事件)（loop 线程直发）
+            alt token.started_at 为空
+                R-->>C: 200 mode=queued_dropped
+                Note over P: dispatcher 取到该任务后 mark_running 的 CAS 失败，直接丢弃，零 LLM 调用
+            else token.started_at 非空
+                R-->>C: 200 mode=node_boundary
+                Note over P,F: worker 正在跑当前节点，节点返回后检测到 event 已置位 → 停止迭代并丢弃结果
+                P->>DB: mark_terminal（CAS running→done）返回 0 行 → 不覆盖
+            end
+        end
+    end
+
+
+%% ================= 图 4：单工具调用与 HITL 决策 =================
+sequenceDiagram
+    autonumber
+    participant C as 客户端
+    participant R as ToolsRoute
+    participant Reg as ToolRegistry
+    participant T as 工具函数（沙箱）
+
+    C->>R: POST /tools/{name}/invoke?approve_high_risk=false
+    R->>Reg: get(name)
+    alt 未注册
+        R-->>C: 404 tool_not_found（信息里列出可用工具名）
+    else 已注册
+        alt danger_level 为 low 或 settings.enable_hitl 为 false
+            R->>Reg: call(name, args)
+        else danger_level 为 high 且 enable_hitl 为 true
+            alt approve_high_risk 为 false
+                R-->>C: 200 status=failed，hitl.required=true，reason=高危需人工确认
+            else approve_high_risk 为 true 且 api_allow_high_risk_override 为 true
+                R->>R: 记 WARNING 日志（审计先行）
+                R->>Reg: 注入 lambda n,a 返回 True 后 call(name, args)
+            else approve_high_risk 为 true 但 override 为 false
+                R-->>C: 200 status=failed，reason=需开启 API_ALLOW_HIGH_RISK_OVERRIDE
+            end
+        end
+        Reg->>T: 校验参数 → 墙钟超时 → 重试 → 结果字符串化
+        T-->>Reg: 返回值或异常
+        Reg-->>R: ToolCallRecord（永不抛异常）
+        R-->>C: 200 ToolInvokeResponse（失败也 200，看 status 字段）
+    end

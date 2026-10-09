@@ -1,0 +1,66 @@
+{
+  "generated_at": "2026-09-20T18:46:45",
+  "tool": "scripts/build_corpus_a.py",
+  "dataset": "golden_a_cmrc300.jsonl",
+  "corpus_dir": "fixtures_cmrc_a",
+  "corpus_docs": 3051,
+  "seed": 7,
+  "rule": "拒答题的任一答案变体在语料正文里字面出现即判脏（与 build_golden_set 同一条判据）",
+  "refusal_total": 90,
+  "dirty_count": 6,
+  "dirty_ratio": 0.0667,
+  "clean_count": 84,
+  "dirty": [
+    {
+      "qid": "A-refusal-233",
+      "query": "康王路在哪里？",
+      "heldout_document": "cmrc_DEV_621.md",
+      "hit_docs": [
+        "TRAIN_1268"
+      ]
+    },
+    {
+      "qid": "A-refusal-251",
+      "query": "波兰及立陶宛是什么时候在行政上合并为一个国家？",
+      "heldout_document": "cmrc_DEV_565.md",
+      "hit_docs": [
+        "TRAIN_1567"
+      ]
+    },
+    {
+      "qid": "A-refusal-252",
+      "query": "亚历山大·罗迪奇是哪个国家的足球运动员？",
+      "heldout_document": "cmrc_DEV_464.md",
+      "hit_docs": [
+        "DEV_428",
+        "TRAIN_1190"
+      ]
+    },
+    {
+      "qid": "A-refusal-264",
+      "query": "三棱龙属生存的时期？",
+      "heldout_document": "cmrc_TRAIN_1022.md",
+      "hit_docs": [
+        "TRAIN_1626",
+        "TRAIN_2336",
+        "TRAIN_2471"
+      ]
+    },
+    {
+      "qid": "A-refusal-273",
+      "query": "若一领铠甲使用三种以上不同颜色的丝绳，会被称为什么？",
+      "heldout_document": "cmrc_DEV_224.md",
+      "hit_docs": [
+        "DEV_228"
+      ]
+    },
+    {
+      "qid": "A-refusal-292",
+      "query": "褐塘鳢以什么为食？",
+      "heldout_document": "cmrc_TRAIN_3511.md",
+      "hit_docs": [
+        "TRAIN_3532"
+      ]
+    }
+  ]
+}

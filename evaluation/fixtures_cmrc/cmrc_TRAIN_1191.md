@@ -1,0 +1,1 @@
+降解体（Degradosome）是存在于大多数细菌中的一种多亚基蛋白质复合物，其功能为参与核糖体RNA的加工以及信使RNA的降解，故又可称为RNA降解体。1994年，瑞士日内瓦大学的Henry Krisch所领导的实验室和英国剑桥大学的Christopher Higgins所领导的实验室分别发表文章提出了细菌中存在着一种可以降解RNA的蛋白质复合物，也就是降解体；他们是在对大肠杆菌的RNase E和PNPase的研究和鉴定过程中得到这一发现。降解体的主要成分为核糖核酸酶E（RNase E）、多核苷酸磷酸化酶（PNPase）、RNase螺旋酶B（RhlB）和烯醇酶（enolase）。

@@ -1,0 +1,63 @@
+name: CI
+
+# 触发：推送到受保护分支 / 任意 PR。
+on:
+  push:
+    branches: [main, publish, dev]
+  pull_request:
+
+jobs:
+  test:
+    name: pytest (Python 3.12)
+    runs-on: ubuntu-latest
+    # 不依赖任何密钥：集成测试用 MockLLM（零 token、不联网），
+    # RAG 嵌入测试走 MockEmbedder，语料为仓库内 fixture，全部离线可跑。
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -e ".[dev]"
+
+      - name: Run test suite
+        run: pytest -q
+
+  # 文档卫生门禁：拦截不应出现在公开仓库的表述。
+  # 禁用模式维护在 scripts/docs_hygiene_patterns.txt（该文件为 .txt，不在扫描范围内，
+  # 因此不会自匹配）。
+  docs-hygiene:
+    name: 文档卫生检查
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: 运行文档卫生检查
+        run: |
+          set -eu
+          # 模式文件含注释与空行，先用 grep -v 滤掉再用 —— 空行当正则会匹配任意行。
+          grep -vE '^[[:space:]]*(#|$)' scripts/docs_hygiene_patterns.txt > /tmp/patterns.txt
+          HITS=$(grep -rInE -f /tmp/patterns.txt \
+            --exclude-dir=.git --exclude-dir=node_modules \
+            --include='*.md' --include='*.py' --include='*.ts' --include='*.tsx' \
+            --include='*.cjs' --include='*.yaml' --include='*.yml' \
+            . || true)
+          # 豁免 evaluation/fixtures_cmrc/（CMRC2018 公开评测语料正文）与
+          # data/demo_docs/（自带虚构声明的演示语料）：二者都不是项目自述，
+          # 语料正文里出现的同类用词不该拦，否则会误报。
+          # （本文件自身也在扫描范围内，故此处不写出被禁的词面，避免自匹配。）
+          # （--exclude 与 --include 并用时在本环境不生效，故改用输出过滤。）
+          HITS=$(printf '%s\n' "$HITS" | grep -vE 'evaluation/fixtures_cmrc/|data/demo_docs/' || true)
+          if [ -n "$HITS" ]; then
+            echo "::error::发现不应对外暴露的表述，请清理后再合并："
+            echo "$HITS"
+            exit 1
+          fi
+          echo "通过：未发现内部协作术语或未收敛表述。"

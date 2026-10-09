@@ -1,0 +1,1 @@
+荷兰中央统计局（荷兰文：Centraal Bureau voor de Statistiek, CBS；英文：Statistics Netherlands）又称荷兰统计局，缩写为CBS，成立于1899年，为专门收集荷兰统计资讯的政府部门。隶属于荷兰经济部，在海牙和希伦（Heerlen）设有办公室。自2004年1月3日起，中央统计局成为一个半官方机构。中央统计局所收集的统计资讯有：中央统计局执行计划须由中央统计委员会（Central Commission for Statistics）批准。根据1996年的法令，该独立委员会必须看守中央统计局的公正性、独立性、品质、相关性和连续性。

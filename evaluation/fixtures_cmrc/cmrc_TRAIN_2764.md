@@ -1,0 +1,1 @@
+Miro（原名为Democracy Player及DTV）是由开发的集媒体播放器、网络电视于一身的开源软件，自身可播放多种文件格式，也可通过下载功能下载互联网上的影片并且加以管理，支持Microsoft Windows、Mac OS X及Linux作业系统。Miro是遵循GNU通用公共许可证发布的开源软件。Miro可播放如Quicktime、WMV、MPEG、AVI、XVID等在内的多种格式。Miro可从YouTube、Google影片、Blip以及其他网站下载影片，也可以使用搜索功能在互联网上寻找自己需要的影片。Miro能自动从使用RSS的「频道」下载影片，并进行管理和播放。通过YouTube的高清影片功能，可以获得高质量的影片。

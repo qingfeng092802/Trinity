@@ -1,0 +1,73 @@
+# ---- secrets / env ----
+.env
+.env.*
+!.env.example
+*.key
+
+# ---- runtime data ----
+# data/ 默认不入库，但放行两类「重建知识库所需的内容资产」
+data/*
+!data/demo_docs/
+# 放行 knowledge/ 是「公开语料随仓库走」的口径；如果这里落了公司内部规程原件，
+# 就别再 `git add -A`（先 `git status` 过一眼，或把这行注释掉）。
+!data/knowledge/
+data/demo_docs/_p5_evidence/
+*.db
+*.sqlite3
+logs/
+*.log
+
+# ---- python ----
+__pycache__/
+*.pyc
+.venv/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+# pip wheel / pip install -e 的构建副产物（构建后端生成，不入库）
+build/
+dist/
+*.egg-info/
+.eggs/
+
+# ---- editors / os ----
+.idea/
+.vscode/
+.DS_Store
+Thumbs.db
+
+# ---- node / frontend (web-react) ----
+node_modules/
+dist/
+web-react/dist/
+web-react/node_modules/
+.env.local
+.env.*.local
+
+# ---- secrets safety net ----
+.env
+.env.*
+!.env.example
+
+# ---- tooling temp ----
+_*tmp*
+# 探针/落盘临时文件（仅锚定仓库根目录；不带 / 会误杀 tests/unit/_rag_fixtures.py 等真实依赖）
+/_*.txt
+/_*.py
+/_*.xml
+/_*.json
+/_*.js
+/_*/
+/clean_stdout.txt
+/lead_trace_toolcall.*
+# pytest 项目内 basetemp / WorkBuddy 工作区
+.pytest_tmp/
+.workbuddy/
+# 评测报告（产物不入库，复跑即得；数据集与语料在 dataset/ fixtures/ 正常入库）
+evaluation/reports/
+# pytest 的 junit 产物（跑测草稿，复跑即得：--junit-xml=test-reports/xxx.xml）
+/test-reports/
+# 语料方案 A 的 3,051 篇全量语料：14 MB 文本不进 git 历史，
+# 由 scripts/build_corpus_a.py + evaluation/dataset/corpus_a_manifest.json（doc-key 清单）再生（D15 / §8.17）
+evaluation/fixtures_cmrc_a/
+data/knowledge/

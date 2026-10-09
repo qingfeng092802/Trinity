@@ -1,0 +1,21 @@
+node_modules/
+dist/
+# tsc 的增量编译缓存（`npm run build` 跑一次就重写，进库只会反复产生 diff 噪声）
+*.tsbuildinfo
+tools/uicheck/shots/
+tools/uicheck/shots2/
+# answerText / toolMeta / logRows / answerMath / pyTokens / format / citations / modelLabel 八枚 .test.cjs 的输入：
+# esbuild 出来的中间产物，跑测试时现生成
+tools/uicheck/answerText.cjs
+tools/uicheck/toolMeta.cjs
+tools/uicheck/logRows.cjs
+tools/uicheck/answerMath.cjs
+tools/uicheck/pyTokens.cjs
+tools/uicheck/format.cjs
+tools/uicheck/citations.cjs
+tools/uicheck/modelLabel.cjs
+# 归档截图（24 张 PNG）：交付留档用，二进制不进库
+tools/uicheck/final/
+.vite/
+*.local
+.DS_Store

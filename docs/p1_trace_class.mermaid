@@ -1,0 +1,166 @@
+%% P1-A 轨迹事件：类图
+%% 对应 docs/p1_trace_events_design.md §3.1
+classDiagram
+    class TaskEventRecord {
+        <<SQLAlchemy ORM, table=task_events>>
+        +int event_seq «PK AUTOINCREMENT»
+        +str task_id «index»
+        +int step
+        +int sub_step
+        +str event_type
+        +str role
+        +str node
+        +str thought
+        +str tool_name
+        +str arguments «JSON text»
+        +str observation
+        +int latency_ms
+        +int tokens_in
+        +int tokens_out
+        +float cost
+        +str status
+        +str error_code
+        +str error_message
+        +int sse_seq
+        +str created_at «UTC naive»
+        +as_dict() dict
+    }
+
+    class EventRecord {
+        <<pydantic, 写入侧契约>>
+        +str event_type
+        +str task_id
+        +int step
+        +int sub_step
+        +str role
+        +str|None node
+        +str thought
+        +str|None tool_name
+        +dict arguments
+        +str observation
+        +int latency_ms
+        +int tokens_in
+        +int tokens_out
+        +float cost
+        +str status
+        +str|None error_code
+        +str|None error_message
+        +int|None sse_seq
+        +to_row() dict
+        +to_sse_data() dict
+    }
+
+    class TaskEventSink {
+        <<Protocol>>
+        +__call__(record: EventRecord) None
+    }
+
+    class Database {
+        +record_event(**fields) int
+        +list_events(task_id, after_seq, limit) list~TaskEventRecord~
+        +count_events(task_id) int
+        +max_event_seq(task_id) int
+        +clear_all() None
+    }
+
+    class DatabaseEventSink {
+        +__init__(database: Database)
+        +__call__(record: EventRecord) None
+    }
+
+    class TaskWorker {
+        -database: Database
+        -traces: TraceStore
+        -bus: EventBus
+        -seq: int
+        +run(item: QueueItem) None
+        -_record_event(item, event_type, **fields) None
+        -_publish(item, name, seq, data) None
+    }
+
+    class NodeContext {
+        +llm: LLMAdapter
+        +config: WorkflowConfig
+        +trace_sink: TraceSink|None
+        +event_sink: TaskEventSink|None
+        +tool_invoker: ToolInvoker|None
+        +create(..., event_sink) NodeContext
+    }
+
+    class BaseNode {
+        +__call__(state) StateUpdate
+        +trace_step(state, update) int
+        +_emit_trace(state, update, status, duration_ms) None
+    }
+
+    class ExecutorNode {
+        +role = "executor"
+        +run(state) StateUpdate
+        +_call_tool(name, args) ToolCallRecord
+    }
+
+    class ToolRegistry {
+        +call(name, args) ToolCallRecord
+    }
+
+    class ToolCallRecord {
+        <<TypedDict>>
+        +str name
+        +dict args
+        +str result
+        +str status
+        +int duration_ms
+    }
+
+    class TaskTraceResponse {
+        <<pydantic, API 响应>>
+        +str task_id
+        +list~TaskEventView~ items
+        +int total
+        +int limit
+        +int after_seq
+        +bool has_more
+        +str|null next_after_seq
+        +bool events_available
+        +str|null unavailable_reason
+    }
+
+    class TaskEventView {
+        <<pydantic, API 响应>>
+        +int event_seq
+        +int step
+        +int sub_step
+        +str event_type
+        +str role
+        +str|null node
+        +str thought
+        +str|null tool_name
+        +dict arguments
+        +str observation
+        +int latency_ms
+        +int tokens_in
+        +int tokens_out
+        +float cost
+        +str status
+        +str|null error_code
+        +str|null error_message
+        +int|null sse_seq
+        +datetime created_at
+    }
+
+    Database "1" --> "0..*" TaskEventRecord : manages
+    DatabaseEventSink ..|> TaskEventSink : implements
+    DatabaseEventSink --> Database : writes via
+    TaskWorker --> Database : record_event()
+    TaskWorker --> TaskEventSink : emits via ctx
+    NodeContext --> TaskEventSink : event_sink
+    NodeContext --> BaseNode : injected into
+    NodeContext --> ToolRegistry : tool_invoker
+    BaseNode <|-- ExecutorNode : extends
+    BaseNode --> TaskEventSink : llm_call / node_end
+    ExecutorNode --> ToolRegistry : call()
+    ToolRegistry ..> ToolCallRecord : returns
+    ExecutorNode ..> ToolCallRecord : maps to tool_call event
+    TaskTraceResponse "1" *-- "0..*" TaskEventView
+    TaskEventRecord ..> TaskEventView : as_dict() -> view
+    EventRecord ..> TaskEventRecord : to_row() -> INSERT

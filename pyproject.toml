@@ -1,0 +1,114 @@
+[build-system]
+# 必须显式声明：没有这一段时 pip 退回「setuptools 隐式默认」，而本工程是**扁平布局**
+# （顶层同时存在 api/ core/ rag/ storage/ evaluation/ data/ scripts/ tests/），
+# setuptools 的自动发现会判定「Multiple top-level packages discovered」并拒绝构建 ——
+# 表现为 `pip install -e .` / `pip wheel .` 一律失败（干净 clone 按 README 装不上）。
+# 修法：本段 + 下方 [tool.setuptools] 的显式包声明（两者共同构成可安装的前提）。
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "trinity"
+version = "0.2.0"
+description = "Trinity · 多 Agent 协作与 RAG 检索评测平台：Planner → Executor → Reviewer 三角色编排 + REST API + 控制台"
+requires-python = ">=3.12"
+dependencies = [
+    "fastapi>=0.115",
+    "uvicorn>=0.30",
+    # python-multipart 是「硬依赖」而不是可选：api/routes/knowledge.py 的上传接口用
+    # Form(...)，fastapi 在 import 期就校验它，缺失会直接抛 RuntimeError，整个
+    # api.main 根本 import 不进来（表现为服务起不来，而不是某个接口 500）。
+    "python-multipart>=0.0.9",
+    "pydantic>=2.7",
+    "pydantic-settings>=2.2",
+    "sqlalchemy>=2.0",
+    "langchain-core>=0.3",
+    "langchain-openai>=0.2",
+    "langgraph>=0.2",
+    "tenacity>=8.2",
+    "python-dotenv>=1.0",
+    "tiktoken>=0.7",
+    "jsonschema>=4.22",
+    # 任务集（evaluation/tasksets/*.yaml）与消融矩阵（evaluation/dataset/*.yaml）解析用。
+    "pyyaml>=6.0",
+    "pypdf>=5",
+    "rank-bm25>=0.2.2",
+    "jieba>=0.42.1",
+    # 本地 embedding 默认走 fastembed（ONNX Runtime，不拖 torch）；sentence-transformers
+    # 因本机 Windows 应用控制策略拦截而弃用，且生产代码路径已无任何 import（仅
+    # scripts/spike_embedding_stack.py 里留了 try/except 包裹的探针 import），
+    # 属于僵尸依赖，已从依赖表删除。
+    "fastembed>=0.4.0",
+    "numpy>=1.26",
+    "sqlite-vec>=0.1.6",
+]
+
+[project.optional-dependencies]
+dev = ["pytest>=8.0", "pytest-cov", "httpx>=0.27", "ruff", "mypy"]
+# 原先这里还有一个 ``ui = ["streamlit", "pandas", "altair"]`` —— 那套 Streamlit 控制台
+# （``ui/`` 五页）已于 2026-09-27 整目录删除，界面统一在 ``web-react/``（Node 工程，
+# 不进 Python 依赖表）。pandas / altair 是它专用，仓库里没有任何非 ``ui/`` 代码 import 它们。
+# redis 是**可选**依赖：没装或没起服务时 storage.cache 自动降级为进程内缓存，平台功能
+# 不受影响（health 里 redis 项是 degraded + HTTP 200，不是 unhealthy）。
+redis = ["redis>=5.0"]
+# torch 后端是 M3 消融的**可选**臂（EMBEDDING_BACKEND=torch 与 cross-encoder 精排）：
+# rag/embedder.py 用 AutoModel/AutoTokenizer，rag/reranker.py 用
+# AutoModelForSequenceClassification，两处都是函数内 import，不装也不影响默认路径。
+# 不进主依赖表的原因：torch 体积 GB 级，且本机应用控制策略对部分二进制有拦截史，
+# 装不上时应当降级到 fastembed + API 重排，而不是让整个 `pip install .` 失败。
+torch = ["torch>=2.2", "transformers>=4.44"]
+# Golden Set 构建（scripts/build_golden_set.py 读 HF parquet）用；运行期不需要。
+data = ["pyarrow>=16"]
+
+# --------------------------------------------------------------------------- #
+# 打包布局（**不要**改成自动发现，见 [build-system] 上方注释）
+# --------------------------------------------------------------------------- #
+[tool.setuptools]
+# 刻意**不**包含：
+#   - data/ → 运行期产物（SQLite 库、知识库原件、日志），绝不能进发行包。
+#   - scripts/、tests/、docs/ → 开发/测试资产，不是运行期依赖。
+#   - web-react/ → Node 工程，由 vite 自己构建，不进 Python 发行包。
+# 原先还有一条关于 ``web/``（静态控制台）与 ``ui/``（Streamlit 包）的说明：
+# 两个目录 2026-09-27 都已删除，``ui*`` 也随之下线（见 packages.find 的 include）。
+#
+# `py-modules` 是**顶层单模块**声明，与 packages 相互独立、不冲突：config.py 是项目根下
+# 的 .py 而非包，不声明它装完 `from config import get_settings` 就是 ModuleNotFoundError。
+# 它必须写在这一层（不能在 packages.find 里——那子表的 JSON Schema 只允许
+# where/exclude/include/namespaces，多写一个键直接校验失败）。
+py-modules = ["config"]
+
+# 关键点 1（**如实记录，勿再转述成别的原理**）：这里用 `find`（递归 + include 白名单）。
+# 它**不是**唯一可行写法——实测 `packages = ["api", "core", ...]` 精确数组同样能构建出
+# 完整 wheel。选 `find` 只是因为 include 白名单更省心、不用逐个维护清单。
+# 关键点 2：为什么用 include 而不是 exclude —— include 是「只收这些」，将来新增无关顶层
+# 目录不会污染发行包；exclude 是「除了这些都要」，漏写一个就把 data/ 卷进去。
+[tool.setuptools.packages.find]
+include = ["api*", "core*", "rag*", "storage*", "evaluation*"]
+
+[tool.setuptools.package-data]
+# 提示词是**运行时读取的资产**，不打包进去装完就找不到 planner/executor/reviewer/judge
+# 与 M3 的 answer_*/metric_* 模板。通配符要同时覆盖各版本目录，所以写成
+# `prompts/**/*.md` 而不是逐个列文件名。
+core = ["llm/prompts/**/*.md"]
+# 消融矩阵、任务集、基线快照同样是运行期读取的资产（runner 默认路径指向包内）。
+evaluation = ["dataset/*.yaml", "tasksets/*.yaml", "baselines/*.json"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = "-q"
+filterwarnings = ["ignore::DeprecationWarning"]
+
+[tool.coverage.run]
+source = ["api", "core", "storage", "evaluation", "rag"]
+
+[tool.ruff]
+line-length = 100
+target-version = "py312"
+
+[tool.ruff.lint.isort]
+known-first-party = ["api", "config", "core", "evaluation", "rag", "storage", "tests"]
+
+[tool.mypy]
+files = ["api", "config.py", "core", "storage", "evaluation", "rag"]
+python_version = "3.12"
+ignore_missing_imports = true

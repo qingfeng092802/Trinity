@@ -1,0 +1,68 @@
+# ============================================================================
+# 一键起栈：docker compose up -d
+#
+# 只起一个服务：
+#   api —— FastAPI + 编排内核，对外 8000，只暴露 API（界面在 web-react/，容器不托管前端）
+#
+# Redis 已移除（精简重构 2026-09-20）：storage/cache.py 自带进程内降级分支，
+# 不装 redis 包 / 不起 redis 容器时自动走进程内缓存，功能不受影响
+# （`/health` 的 cache 项显示 degraded，HTTP 仍是 200）。
+# 少一个容器 = 少一层故障域，本地起服务与演示都更快。
+#
+# 配置注入
+#   优先读同目录的 .env（`cp .env.example .env` 后填 LLM_API_KEY）；
+#   文件不存在时 compose 会警告但继续，此时 LLM_API_KEY 为空 ——
+#   服务能起来、检索/评测能用，但提交任务会失败。用
+#   `docker compose run --rm api python scripts/doctor.py` 可做启动前自检。
+# ============================================================================
+
+services:
+  api:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: trinity:latest
+    container_name: trinity-api
+    restart: unless-stopped
+    ports:
+      # 宿主端口可用 API_PORT 覆盖；容器内固定 8000
+      - "${API_PORT:-8000}:8000"
+    environment:
+      # 容器内绑 0.0.0.0；对外暴露前请务必设置 API_AUTH_TOKEN
+      API_HOST: "0.0.0.0"
+      API_PORT: "8000"
+      DB_URL: "sqlite:///data/trinity.db"
+      # 以下三项留空时不覆盖镜像默认值，由 .env / 宿主环境注入
+      LLM_API_KEY: "${LLM_API_KEY:-}"
+      LLM_BASE_URL: "${LLM_BASE_URL:-https://api.deepseek.com/v1}"
+      LLM_MODEL_LARGE: "${LLM_MODEL_LARGE:-deepseek-flash}"
+      LLM_MODEL_SMALL: "${LLM_MODEL_SMALL:-deepseek-flash}"
+      API_AUTH_TOKEN: "${API_AUTH_TOKEN:-}"
+      LOG_LEVEL: "${LOG_LEVEL:-INFO}"
+    volumes:
+      # 单一数据卷持久化 SQLite（trinity.db，含知识库的向量表）、
+      # 上传原件（knowledge/files）与工具沙箱（workspace）。
+      # 三者在同一个 SQLite 文件 / 同目录树下，拆成多个卷反而容易不一致。
+      - trinity_data:/app/data
+    healthcheck:
+      test:
+        - CMD
+        - python
+        - -c
+        - "import urllib.request,sys; sys.exit(0 if urllib.request.urlopen('http://127.0.0.1:8000/health', timeout=3).status == 200 else 1)"
+      interval: 30s
+      timeout: 5s
+      start_period: 20s
+      retries: 3
+    networks:
+      - trinity_net
+
+volumes:
+  # 命名卷而非绑定挂载：Windows / macOS 上绑定挂载 SQLite 会有文件锁语义问题，
+  # 而 SQLite 的 WAL 依赖真实的 POSIX 文件锁。
+  trinity_data:
+    name: trinity-data
+
+networks:
+  trinity_net:
+    name: trinity-net

@@ -1,0 +1,198 @@
+{
+  "schema_version": 1,
+  "created_at": "2026-09-19T16:17:44.092576+08:00",
+  "taskset": {
+    "name": "yunqi-smoke",
+    "version": 1,
+    "path": "evaluation/tasksets/yunqi_smoke.yaml",
+    "sha256": "19c9f815c4b450f132d2efbcf8ffa2989d87fdcf77efd37c2ca1860fcfefe4a9",
+    "task_count": 5,
+    "task_ids_hash": "f39714f7bebd77eae51cc72d16f5a261e41c93efb3e043ad8b03b3ce7272e859"
+  },
+  "model": {
+    "temperature": 0.0,
+    "llm_model_large": "deepseek-flash",
+    "llm_model_small": "deepseek-flash",
+    "embedding_model_name": "bge-small-zh-v1.5"
+  },
+  "prompts": {
+    "versions": {
+      "executor": "v1",
+      "judge": "v1",
+      "planner": "v1",
+      "reviewer": "v1"
+    },
+    "files_sha256": {
+      "core/llm/prompts/v1/.gitkeep": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "core/llm/prompts/v1/executor.md": "90767639b38164365178364b4cfe50dea5dd57bb65b5ccd20d62693bafda2dee",
+      "core/llm/prompts/v1/judge.md": "a62048c720cbb337e3f531f4f9f5706a3528f673005be3cdff8ec12d1962ac56",
+      "core/llm/prompts/v1/planner.md": "0e44a4d38fb16ac81c1e6cee86a3e6c673dbfb04fee0bffb7ffd5a455eea85ec",
+      "core/llm/prompts/v1/reviewer.md": "c4df42f72979883f834381c4c4d29f50930f505e04b5fd60a6bf9d0cd86af1a9"
+    }
+  },
+  "code_fingerprint": {
+    "git_commit": null,
+    "sources_sha256": {
+      "core/agent/__init__.py": "03c8fdadd875e4684d59538034cd3b4f6d424709cf78f2e5b414c3fe0a55dca2",
+      "core/agent/base.py": "49643169200399da33ba35719ceb67e44a68013fdd0d251658a50d6901d49a9f",
+      "core/agent/executor.py": "7fd84cbd5b59b8b67e79336f2a437fd92fd884719b9743359d9fbc8204c20cab",
+      "core/agent/planner.py": "a32ea93cccb5824d69e67495a4078e3d67b2c6298b83ef4c39841fefbfaf938b",
+      "core/agent/reviewer.py": "0a0d40f391ebf4fdff81ac33cb81ed400ab09228e5f71101f44eb0835e435f1e",
+      "core/llm/__init__.py": "0cf338a46f05f8c84662176063d6f5f2248a089d4eae868f8b8b8b6c2a0390ff",
+      "core/llm/adapter.py": "902b64b9f19698449cc0d13a70a9d0dcc787a6a6395a8d89c89b30ade9e0f351",
+      "core/llm/pricing.py": "ae43df086404de914513dd88f7e5576d122416852da8f50a1584ccea0994e8dc",
+      "core/llm/prompts/v1/.gitkeep": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "core/llm/prompts/v1/executor.md": "90767639b38164365178364b4cfe50dea5dd57bb65b5ccd20d62693bafda2dee",
+      "core/llm/prompts/v1/judge.md": "a62048c720cbb337e3f531f4f9f5706a3528f673005be3cdff8ec12d1962ac56",
+      "core/llm/prompts/v1/planner.md": "0e44a4d38fb16ac81c1e6cee86a3e6c673dbfb04fee0bffb7ffd5a455eea85ec",
+      "core/llm/prompts/v1/reviewer.md": "c4df42f72979883f834381c4c4d29f50930f505e04b5fd60a6bf9d0cd86af1a9",
+      "evaluation/__init__.py": "a048d63daaa402b944186419d1d613a3d326f1da0dd088bd05e62236b9678c9b",
+      "evaluation/assertions.py": "762548fed765805fec31dfebbcb9908465111b9d733677118c7c4b7da12e9560",
+      "evaluation/baseline.py": "5943ce776a4da8ccb95816508136bbf5f6d153ed344dc703ae9fb9d03a435c55",
+      "evaluation/batch.py": "8b2b1895714a96a812287134de2368be4bfb0e08c8ad6043998b6138dde48d85",
+      "evaluation/contracts.py": "0c61c3e8b65470b2522a4b39b289705c47fa79629e3960d689a5419fe216a92e",
+      "evaluation/dataset.py": "9e5ce740e3c5976f3baf742529bc149853bf32f6a962af7e1f0e5bbcb55e961c",
+      "evaluation/harness.py": "21c8c26940ba4265301718a0a010c771c6b0ba9c9fcfdaf2d289eb8a825c1269",
+      "evaluation/judge.py": "3fa8678331f69045686913b8aa817efd365ea10b3036aa6c34ef014bedd031f6",
+      "evaluation/metrics.py": "0d1ff9275caa72074604b5cd5bd43b1b4ce118a77ab1b0e1b8b49535a0c1d4d4",
+      "evaluation/retrieval_eval.py": "fb7a3b5602427e97527ae716f4c9318faf09421644bc45327aa105bc2228ab71",
+      "evaluation/taskset.py": "4c13ad4569ca20afc0f6fcf555dca0550c50471f137a7e0c68eb40e31d38ecc1",
+      "evaluation/trace.py": "314ac1dc2a59e2c2c7ca6f81a5da3ed07ebf60d28b0208230bfe8a75d90a727a"
+    }
+  },
+  "config": {
+    "max_iterations": 3,
+    "review_threshold": 7,
+    "temperature": 0.0,
+    "bm25_weight": 0.4,
+    "vector_weight": 0.6,
+    "embedding_dim": 512,
+    "run_id": "run-20260919-161744"
+  },
+  "channel": "direct",
+  "repeat": 1,
+  "metrics": {
+    "evaluated": 5,
+    "skipped": 0,
+    "passed": 4,
+    "failed": 1,
+    "pass_rate": 0.8,
+    "tool_accuracy": 1.0,
+    "tool_expected_tasks": 5,
+    "tool_accuracy_soft": 1.0,
+    "avg_steps": 3.4,
+    "avg_iterations": 0.2,
+    "avg_tool_calls": 2.0,
+    "tool_calls": 10,
+    "tool_failures": 0,
+    "tool_call_success_rate": 1.0,
+    "total_cost": 0.129272,
+    "avg_cost": 0.025854,
+    "avg_latency_ms": 23652.8,
+    "p50_latency_ms": 17958.0,
+    "p95_latency_ms": 56516.0,
+    "max_latency_ms": 56516.0,
+    "wall_ms": 0,
+    "std": {}
+  },
+  "per_task": [
+    {
+      "id": "yq-smoke-lookup",
+      "category": "single_doc_lookup",
+      "difficulty": "easy",
+      "passed": true,
+      "status": "done",
+      "steps": 3,
+      "iterations": 0,
+      "tool_calls": 1,
+      "tool_failures": 0,
+      "cost": 0.0114,
+      "duration_ms": 11258,
+      "tool_sequence": [
+        "knowledge_search"
+      ],
+      "failed_assertions": [],
+      "error": null
+    },
+    {
+      "id": "yq-smoke-cross",
+      "category": "cross_doc_consistency",
+      "difficulty": "medium",
+      "passed": true,
+      "status": "done",
+      "steps": 3,
+      "iterations": 0,
+      "tool_calls": 2,
+      "tool_failures": 0,
+      "cost": 0.025171,
+      "duration_ms": 17958,
+      "tool_sequence": [
+        "knowledge_search",
+        "knowledge_search"
+      ],
+      "failed_assertions": [],
+      "error": null
+    },
+    {
+      "id": "yq-smoke-num",
+      "category": "numeric_reasoning",
+      "difficulty": "medium",
+      "passed": true,
+      "status": "done",
+      "steps": 3,
+      "iterations": 0,
+      "tool_calls": 2,
+      "tool_failures": 0,
+      "cost": 0.01454,
+      "duration_ms": 11690,
+      "tool_sequence": [
+        "knowledge_search",
+        "calculator"
+      ],
+      "failed_assertions": [],
+      "error": null
+    },
+    {
+      "id": "yq-smoke-bnd",
+      "category": "boundary",
+      "difficulty": "hard",
+      "passed": true,
+      "status": "done",
+      "steps": 5,
+      "iterations": 1,
+      "tool_calls": 3,
+      "tool_failures": 0,
+      "cost": 0.050174,
+      "duration_ms": 56516,
+      "tool_sequence": [
+        "knowledge_search",
+        "knowledge_search",
+        "knowledge_search"
+      ],
+      "failed_assertions": [],
+      "error": null
+    },
+    {
+      "id": "yq-smoke-neg",
+      "category": "negative",
+      "difficulty": "medium",
+      "passed": false,
+      "status": "done",
+      "steps": 3,
+      "iterations": 0,
+      "tool_calls": 2,
+      "tool_failures": 0,
+      "cost": 0.027987,
+      "duration_ms": 20842,
+      "tool_sequence": [
+        "knowledge_search",
+        "knowledge_search"
+      ],
+      "failed_assertions": [
+        "result_contains",
+        "no_fabrication"
+      ],
+      "error": null
+    }
+  ]
+}

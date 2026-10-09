@@ -1,0 +1,109 @@
+# 云启智能知识库 · 冒烟子集（快速调试用，**恰好 5 条**）
+#
+# 目的（设计文档 §5.2）：小样本冒烟，避免每次调试烧全量（≈¥0.06–0.15 / 1–2 分钟）。
+# 覆盖 5 个分类各 1 条，其中含 1 条负样本（negative）。
+# 期望值与来源同主任务集 yunqi_v1.yaml，均已用检索核验。
+version: 1
+name: yunqi-smoke
+description: 云启智能知识库 · 冒烟子集（5 条，覆盖 5 类含负样本）
+defaults:
+  max_iterations: 3
+  review_threshold: 7
+  use_tools: true
+  run_judge: false
+  timeout_s: 150
+tasks:
+  - id: yq-smoke-lookup
+    category: single_doc_lookup
+    difficulty: easy
+    tags: [smoke, hr, travel]
+    source: "01_员工手册.md 第 6.2 条（一类城市·普通员工 450 元/晚）；04_费用标准对照表.html 一"
+    prompt: "深圳市云启智能科技有限公司的普通员工到北京出差，住宿费上限是每人每晚多少元？请用一句话回答，给出具体数字。"
+    expected_result:
+      contains_all: ["450"]
+      regex: '(?<![0-9])450(?![0-9])'
+    expected_tools:
+      mode: subset
+      any_of: [knowledge_search]
+      allow_extra: true
+    max_steps: 5
+    max_tool_calls: 6
+    max_cost_cny: 0.12
+    max_latency_ms: 120000
+
+  - id: yq-smoke-cross
+    category: cross_doc_consistency
+    difficulty: medium
+    tags: [smoke, cross, finance, approval]
+    source: "02_财务报销制度.txt 第 2.2 条（三级签批）+ 第 2.3 条（2000<X≤10000 加部门负责人）"
+    prompt: "深圳市云启智能科技有限公司员工提交一张 5000 元的报销单，按制度需要经过哪些审批层级？请逐级列出。"
+    expected_result:
+      contains_all: ["直属主管", "部门负责人", "财务部"]
+    expected_tools:
+      mode: subset
+      any_of: [knowledge_search]
+      allow_extra: true
+    max_steps: 6
+    max_tool_calls: 8
+    max_cost_cny: 0.15
+    max_latency_ms: 150000
+
+  - id: yq-smoke-num
+    category: numeric_reasoning
+    difficulty: medium
+    tags: [smoke, numeric, travel]
+    source: "01_员工手册.md 第 6.2 条（一类城市·普通员工 450 元/晚）；计算 3 人 × 2 晚 × 450"
+    prompt: "深圳市云启智能科技有限公司 3 位普通员工一同到北京出差 2 晚，按住宿费上限计算，住宿费合计最多可报销多少元？请给出算式与结果。"
+    expected_result:
+      contains_all: ["2700"]
+      regex: '(?<![0-9])2700(?![0-9])'
+    expected_tools:
+      mode: subset
+      any_of: [knowledge_search, calculator]
+      collapse_repeats: true
+      allow_extra: true
+    max_steps: 6
+    max_tool_calls: 8
+    max_cost_cny: 0.15
+    max_latency_ms: 150000
+
+  - id: yq-smoke-bnd
+    category: boundary
+    difficulty: hard
+    tags: [smoke, boundary, attendance]
+    source: "03_考勤管理制度.txt 第 3.3 条（迟到 30–120 分钟为严重迟到）"
+    prompt: "深圳市云启智能科技有限公司一名员工迟到正好 120 分钟（整）。按考勤制度，这属于哪一档？请明确回答该档位的名称。"
+    expected_result:
+      contains_all: ["严重迟到"]
+    expected_tools:
+      mode: subset
+      any_of: [knowledge_search]
+      allow_extra: true
+    max_steps: 6
+    max_tool_calls: 8
+    max_cost_cny: 0.15
+    max_latency_ms: 150000
+
+  - id: yq-smoke-neg
+    category: negative
+    difficulty: medium
+    tags: [smoke, negative, no_fabrication]
+    source: "知识库未收录（对照组）：4 份文档均无「食堂/餐费补助」任何字样（已检索核验）"
+    prompt: "深圳市云启智能科技有限公司的员工食堂每天的餐费补助标准是多少元？如果知识库中没有相关信息，请如实说明，不要编造数字。"
+    expected_result:
+      contains_any:
+        - ["查不到", "未收录", "未提及", "没有找到", "未找到", "资料中没有", "无法确认", "未包含", "知识库中", "没有相关", "无相关", "不包含", "没有收录", "未见", "无法找到", "未提供", "没有提及", "查无"]
+      # 编造护栏（与 yunqi_v1.yaml 的 yq-neg-001 同步）：具体值 + 形态
+      not_contains: ["30 元", "30元", "25 元", "25元", "20 元", "20元", "15 元", "15元", "50 元", "50元"]
+      not_contains_regex:
+        - '\d+(?:\.\d+)?\s*(?:元|万元|块钱|块)'
+        - '\d+(?:\.\d+)?\s*%'
+    expect_no_fabrication: true
+    expected_tools:
+      mode: subset
+      any_of: [knowledge_search]
+      allow_extra: true
+    max_steps: 5
+    max_tool_calls: 6
+    max_cost_cny: 0.12
+    max_latency_ms: 120000
