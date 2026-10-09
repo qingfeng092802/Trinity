@@ -561,7 +561,7 @@ def resolve_tolerances(
 ) -> dict[str, float]:
     """把容忍带解析成**逐指标绝对值**带（含 ``repeat>1`` 的 ``2σ`` 放宽）。
 
-    单线逻辑（团队仲裁：σ 一律以**指标自身绝对单位**记录，不按指标相对化）：
+    单线逻辑（既定口径：σ 一律以**指标自身绝对单位**记录，不按指标相对化）：
 
     * ``tolerances`` 为空 → 用 ``Tolerances.for_task_count(task_count)``（小样本收紧）；
     * 每个指标的固定带先由 :func:`metric_tolerance` **折算成绝对值**

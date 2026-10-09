@@ -1,6 +1,6 @@
 """规则断言引擎 + 套件指标汇总 单测（P2 评测台 T02）。
 
-覆盖设计文档 §7 对 T02 的验收要点（四类边界）+ 团队补充要求：
+覆盖设计文档 §7 对 T02 的验收要点（四类边界）+ 补充要求：
 
 1. **重复工具折叠**：真实 executor 连续调 3 次 ``knowledge_search`` → 断言按折叠后序列比较；
 2. **额外工具允许 / 禁止**：``subset`` / ``exact_sequence`` / ``set`` / ``none`` 四种 mode 各自行为；
@@ -417,7 +417,7 @@ class TestNoFabricationRegexGuard:
         return self._task(expected_result={"not_contains_regex": self.REGEXES}, **extra)
 
     def test_fabricated_amount_fails_without_exempt_marker(self) -> None:
-        """编造句不含任何豁免标记 → 形态护栏必须拦下（团队指定 FAIL 案例）。"""
+        """编造句不含任何豁免标记 → 形态护栏必须拦下（指定 FAIL 案例）。"""
         run = make_run(final_answer="员工食堂餐费补助为每天 40 元，随工资发放。")
         outcome = check_no_fabrication(self._regex_task(), run)
         assert outcome.passed is False
@@ -488,7 +488,7 @@ class TestNoFabricationRegexGuard:
         assert "已豁免" in outcome.reason
 
     def test_same_sentence_disclaimer_pardons_hit(self) -> None:
-        """规则边界（团队拍板接受）：同一句内「免责 + 编造」→ 按新规则豁免 → PASS。"""
+        """规则边界（既定口径）：同一句内「免责 + 编造」→ 按新规则豁免 → PASS。"""
         run = make_run(final_answer="未收录，据说每天 40 元。")
         outcome = check_no_fabrication(self._regex_task(), run)
         assert outcome.passed is True
@@ -499,7 +499,7 @@ class TestNoFabricationRegexGuard:
 
         ⚠️ 与任务描述的示例「未收录。据说每天 40 元。→ 预期 PASS」不一致：按既定
         规格实现后 `。` 是切分符，两句各自成句，编造句内无豁免标记 → FAIL。
-        此处按规格钉死实际行为，待团队复核口径。
+        此处按规格钉死实际行为，待复核口径。
         """
         run = make_run(final_answer="未收录。据说每天 40 元。")
         outcome = check_no_fabrication(self._regex_task(), run)

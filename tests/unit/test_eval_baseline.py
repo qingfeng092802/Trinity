@@ -283,7 +283,7 @@ class TestTolerance:
         assert classify_metric_change(METRIC_PASS_RATE, widened) == "no_significant_change"
 
     def test_repeat_widens_avg_cost_absolute_sigma(self) -> None:
-        # ★ σ 口径按团队仲裁 = **绝对单位（元）**。
+        # ★ σ 口径按既定口径 = **绝对单位（元）**。
         # 基线 0.05 → 固定相对带 0.20 → 折算绝对 0.01 元；
         # σ=0.03 元 → 2σ=0.06 元 → 放宽为 max(0.01, 0.06)=0.06 元（量纲正确，非比例）
         base = make_model(metrics=suite(avg_cost=0.05), repeat=3)

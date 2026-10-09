@@ -442,7 +442,7 @@ class TestNegativeFabricationGuard:
         assert result is not None
         assert result.not_contains and result.not_contains_regex
 
-    # --- ★ 团队要求的两条对照回答：一条必须 FAIL、一条必须 PASS ---
+    # --- ★ 两条对照回答：一条必须 FAIL、一条必须 PASS ---
 
     def test_fabricated_answer_fails(self) -> None:
         """带免责措辞但编造了具体数字 → 必须 FAIL。"""

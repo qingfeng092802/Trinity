@@ -113,7 +113,7 @@
 | `canceled` | 用户主动取消 | **新增** | 是 |
 
 - 终态集合扩展为 `{done, failed, aborted, canceled}`（现有 `core/workflow/state.py::TERMINAL_STATUSES` 为工作流内部状态，不动；API 层另定义 `API_TERMINAL_STATUSES`）。
-- `canceled` **不计入完成率**，也不计入 `failed`（`evaluation/metrics.py` 的统计口径新增一类或忽略，由架构师定，见 §8 Q4）。
+- `canceled` **不计入完成率**，也不计入 `failed`（`evaluation/metrics.py` 的统计口径新增一类或忽略，随 §8 Q4 结论确定）。
 - 状态流转的唯一写入方：worker（执行中）+ API handler（受理时写 `queued`、取消时写 `canceled`）；worker 落终态前必须再次确认未被取消，防止覆盖。
 
 ---

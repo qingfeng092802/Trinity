@@ -971,14 +971,14 @@ graph TD
 
 ## Part C：待明确事项（U 系列：不确定项与需拍板的取舍）
 
-| # | 事项 | 背景/证据 | 我的建议 | 需谁拍板 |
+| # | 事项 | 背景/证据 | 我的建议 | 决策状态 |
 |---|---|---|---|---|
-| **U1** | **`traces` 表是否要加 `deprecated` 标记** | 用户已定「保留旧表不动」。但代码里没有任何信号提示「别再拿它做回放」 | **只加注释，不改 schema**（加列=迁移成本，收益为零）。在 `evaluation/trace.py` 模块 docstring 与 `models.py:13-14` 各加一句「回放请用 task_events」。**若the user要硬标记，可加 `PRAGMA user_version`，但我不推荐** | the user |
-| **U2** | **老任务是否要「回填」事件** | 有 24 行 traces，理论上可事后转成事件。但 `traces.step` 语义错序（事实 3）、无事件名/node 名（X5），**回填必然产出错误时间线** | **不回填**。诚实标注 `events_available=false`。**回填 = 伪造时间线，违反用户「必须诚实，不许伪造」的硬要求** | the user（默认按不回填施工） |
-| **U3** | **「正在执行的那一步」崩溃时会丢** | 落盘发生在「LLM 返回后、下一步开始前」。若进程恰在一次 120s LLM 调用中崩溃，该步无事件 | **接受**（这是物理极限）。**可选增强**：在调用 LLM 前先写一条 `status="running"` 的事件，返回后 UPDATE 为终态。**代价**：多一次写 + 需要 UPDATE 逻辑。**建议本轮不做**，先记入「已知边界」在文档与页面上如实标注 | the user |
-| **U4** | **`LLMAdapter.last_usage` 的串号风险** | `adapter.py:364` `self.last_usage` 是实例字段；`runner.py:6-13` 靠「每任务 new adapter」隔离。同一节点内多次 LLM 调用会互相覆盖 | 当前 planner/executor/reviewer 都是**节点内单次 LLM 调用** → **当前安全**。**施工要求**：在 `_emit_trace` L1 处写注释固化此前提；一旦未来出现「节点内多次 LLM 调用」，**必须**改成 adapter 返回本次 usage。**是否本轮就改成 `invoke_*` 返回 `(result, usage)`**？改动面覆盖 `adapter` + 3 个节点 + 多个测试 → 建议**本轮不改**，只加注释 + 记入风险 | the user/工程师 |
-| **U5** | **`step` 新定义的边界**：reviewer 打回重做时，同一步骤会被重跑 | `executor.py:57-60`：reviewer 打回后 `cursor=0` 整轮重做；`executor.py:104-105` 按 `step_index` 覆盖 `carry` | **事件不覆盖，全量保留**（重做的第二次执行是**新的历史事实**，`event_seq` 递增）。前端可按 `step`+`sub_step` 分组显示「本步被重做了 N 次」。**这需要前端配合**（见 T04）。**若the user要「只显示最后一次」，属前端过滤策略，不影响表结构** | the user |
-| **U6** | **是否需要 `GET /tasks/{id}/trace` 的实时补全（SSE 版）** | 现在页面靠 `/stream` SSE 看运行中任务，靠 `/trace` 看历史 | **本轮不做**。`/stream`（实时）+ `/trace`（历史）职责已分开。若任务运行中打开轨迹页，可先拉 `/trace` 拿已完成事件，再订 `/stream` 补增量（前端编排，无需新后端端点） | the user |
+| **U1** | **`traces` 表是否要加 `deprecated` 标记** | 用户已定「保留旧表不动」。但代码里没有任何信号提示「别再拿它做回放」 | **只加注释，不改 schema**（加列=迁移成本，收益为零）。在 `evaluation/trace.py` 模块 docstring 与 `models.py:13-14` 各加一句「回放请用 task_events」。**若要硬标记，可加 `PRAGMA user_version`，但我不推荐** | 待定 |
+| **U2** | **老任务是否要「回填」事件** | 有 24 行 traces，理论上可事后转成事件。但 `traces.step` 语义错序（事实 3）、无事件名/node 名（X5），**回填必然产出错误时间线** | **不回填**。诚实标注 `events_available=false`。**回填 = 伪造时间线，违反「必须诚实、不许伪造」的硬要求** | 待定（默认按不回填施工） |
+| **U3** | **「正在执行的那一步」崩溃时会丢** | 落盘发生在「LLM 返回后、下一步开始前」。若进程恰在一次 120s LLM 调用中崩溃，该步无事件 | **接受**（这是物理极限）。**可选增强**：在调用 LLM 前先写一条 `status="running"` 的事件，返回后 UPDATE 为终态。**代价**：多一次写 + 需要 UPDATE 逻辑。**建议本轮不做**，先记入「已知边界」在文档与页面上如实标注 | 待定 |
+| **U4** | **`LLMAdapter.last_usage` 的串号风险** | `adapter.py:364` `self.last_usage` 是实例字段；`runner.py:6-13` 靠「每任务 new adapter」隔离。同一节点内多次 LLM 调用会互相覆盖 | 当前 planner/executor/reviewer 都是**节点内单次 LLM 调用** → **当前安全**。**施工要求**：在 `_emit_trace` L1 处写注释固化此前提；一旦未来出现「节点内多次 LLM 调用」，**必须**改成 adapter 返回本次 usage。**是否本轮就改成 `invoke_*` 返回 `(result, usage)`**？改动面覆盖 `adapter` + 3 个节点 + 多个测试 → 建议**本轮不改**，只加注释 + 记入风险 | 待定 |
+| **U5** | **`step` 新定义的边界**：reviewer 打回重做时，同一步骤会被重跑 | `executor.py:57-60`：reviewer 打回后 `cursor=0` 整轮重做；`executor.py:104-105` 按 `step_index` 覆盖 `carry` | **事件不覆盖，全量保留**（重做的第二次执行是**新的历史事实**，`event_seq` 递增）。前端可按 `step`+`sub_step` 分组显示「本步被重做了 N 次」。**这需要前端配合**（见 T04）。**若要「只显示最后一次」，属前端过滤策略，不影响表结构** | 待定 |
+| **U6** | **是否需要 `GET /tasks/{id}/trace` 的实时补全（SSE 版）** | 现在页面靠 `/stream` SSE 看运行中任务，靠 `/trace` 看历史 | **本轮不做**。`/stream`（实时）+ `/trace`（历史）职责已分开。若任务运行中打开轨迹页，可先拉 `/trace` 拿已完成事件，再订 `/stream` 补增量（前端编排，无需新后端端点） | 待定 |
 | **U7** | **`event_seq` 是否会因 `VACUUM` / 库重建而回退** | `AUTOINCREMENT` 依赖 `sqlite_sequence`。若整库重建（删文件），`sqlite_sequence` 归零 | **接受**：这是「库重建」的语义（等于全新库）。但**前端游标分页需处理**：`after_seq` 只在**单次任务的一次拉取会话**内有意义，不跨「库重建」。**已在契约里标注 `after_seq` 是页内游标** | 记录即可 |
 
 ---

@@ -65,8 +65,8 @@
 | PDF 解析 | **pypdf ≥5** | 纯 Python、零系统依赖、Windows 友好；文本型 PDF 够用 | PyMuPDF（AGPL + 二进制 wheel 大）、pdfplumber（慢，表格需求用不上） |
 | DOCX 解析 | **python-docx ≥1.1** | 事实标准，段落级读取正好喂给切分器 | docx2txt（无结构信息） |
 | Markdown/HTML/TXT | **标准库**（`html.parser` 沿用 `web_search.py` 的零依赖纪律）+ 轻量自制行扫描 | Markdown 标题边界就是行首 `#{1,6} `，不值得引 mistune | mistune/markdown-it（切分只需要结构块，不需要 AST） |
-| 切分 | **自制 `DocumentSplitter`**（~150 行） | 标题/段落优先 + token 窗口是本项目值得自研的点，引 langchain-text-splitters 反而失去叙事且调参不透明 | langchain-text-splitters |
-| Embedding | **sentence-transformers + torch CPU**（fastembed 为 ONNX 备胎） | bge-small-zh-v1.5 官方配方 | API provider（成本+网络依赖+叙事弱，Q2 已否） |
+| 切分 | **自制 `DocumentSplitter`**（~150 行） | 标题/段落优先 + token 窗口是本项目值得自研的点，引 langchain-text-splitters 反而失去对切分逻辑的掌控且调参不透明 | langchain-text-splitters |
+| Embedding | **sentence-transformers + torch CPU**（fastembed 为 ONNX 备胎） | bge-small-zh-v1.5 官方配方 | API provider（成本+网络依赖+可控性弱，Q2 已否） |
 | 向量库 | **sqlite-vec**（chromadb 降级备选） | 与"SQLite 单一存储"哲学一致；同库同事务；备份=拷文件 | FAISS（纯内存自管持久化）、Milvus/Qdrant（独立进程，单机不需要） |
 | BM25 | **rank_bm25 + jieba** | 中文分词质量可控；百级 chunk 重建毫秒级 | SQLite FTS5（中文分词器差，Q4 已否） |
 | 并发模型 | **专职单线程索引 + FastAPI `def` 路由读** | SQLite 单写者天然友好；索引吞吐瓶颈在模型推理，多线程无收益反增锁复杂度 | 复用 M1 TaskQueue（饿死 Agent 任务）、asyncio 队列（worker 是同步 CPU 密集） |
