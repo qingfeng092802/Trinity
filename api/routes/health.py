@@ -12,6 +12,7 @@ llm        未配 Key → fail → unhealthy + 503；      默认零 token，不
 queue      恒 ok，只上报计数                         —
 rag        fail → **只贡献 degraded**（特判，        RAG 故障不影响 Agent 任务
            永不 unhealthy，与 redis 同口径）
+sse        恒 ok，上报订阅/历史与丢弃计数              G-7 的丢弃出口
 =========  =======================================  ==================================
 
 整体状态优先级：任一 ``fail`` → ``unhealthy``；否则任一 ``degraded`` →
@@ -27,7 +28,7 @@ from fastapi import APIRouter, Query, Request
 from fastapi.responses import JSONResponse
 
 from api import __version__
-from api.deps import get_cache_facade, get_database, get_task_queue
+from api.deps import get_cache_facade, get_database, get_event_bus, get_task_queue
 from api.schemas import CheckResult, HealthResponse
 from config import get_settings
 from core.llm import runtime
@@ -130,6 +131,22 @@ def _check_rag() -> CheckResult:
     return CheckResult(status=status_value, detail=detail)
 
 
+def _check_sse() -> CheckResult:
+    """事件总线：恒 ok，上报订阅/历史规模与三类丢弃计数（G-7 的出口）。"""
+    stats = get_event_bus().stats()
+    return CheckResult(
+        status="ok",
+        detail=(
+            f"订阅 {stats['subscribers']}（topic {stats['subscriber_topics']}），"
+            f"历史任务 {stats['history_tasks']}；丢弃 "
+            f"without_loop={stats['dropped_without_loop']} "
+            f"loop_closed={stats['dropped_loop_closed']} "
+            f"queue_full={stats['dropped_queue_full']}"
+        ),
+        **stats,
+    )
+
+
 @router.get("/health", response_model=HealthResponse, summary="健康检查")
 def health(request: Request, deep: bool = Query(default=False, description="是否真实调用 LLM 探针")) -> JSONResponse:
     """健康检查：区分「真的不能服务」与「有降级但能服务」。
@@ -148,6 +165,7 @@ def health(request: Request, deep: bool = Query(default=False, description="是�
         "llm": _check_llm(deep),
         "queue": _check_queue(),
         "rag": _check_rag(),
+        "sse": _check_sse(),
     }
     # 整体判定（rag 特判）：rag=fail 只贡献 degraded，永不升级 unhealthy。
     statuses = {item.status for item in checks.values()}

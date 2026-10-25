@@ -962,7 +962,9 @@ class HealthResponse(BaseModel):
     status: Literal["healthy", "degraded", "unhealthy"]
     version: str
     uptime_seconds: int = 0
-    checks: dict[str, CheckResult] = Field(description="api / database / redis / llm / queue / rag")
+    checks: dict[str, CheckResult] = Field(
+        description="api / database / redis / llm / queue / rag / sse"
+    )
 
 
 # --------------------------------------------------------------------------- #

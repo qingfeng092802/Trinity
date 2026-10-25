@@ -420,6 +420,33 @@ grep -c "^\s*run:" .github/workflows/ci.yml   # 2（一条装依赖、一条跑�
 ② 语义承认"从订阅时刻起"：把用例的 `>= 2` 改成断言"终态必到 + 收到的帧单调递增"，
 并在文档与 docstring 里把这句写进契约。② 便宜且不碰生产代码，① 才是用户以为的那件事。
 
+**关闭申报（2026-10-25，待复核，未勾关闭）**
+
+- **结论**：已修复（采用关闭条件 ①；历史源是 EventBus 的**内存**环形缓冲，不是 TraceStore 回放）。
+- **改动**：
+  - `api/events.py`：每 topic 一份有界历史 `deque(maxlen=SUBSCRIBE_QUEUE_SIZE)`；
+    `subscribe(task_id, last_event_id=...)` 先补发、再挂队列 —— 两者与 `_fanout` 同在 loop 线程且
+    中间无 `await`，接缝原子（不漏帧、不双发）；`_fanout` 对队列满计数 `dropped_queue_full`；
+    `publish()` 未绑定 loop 时计数并**首条 WARNING**（不再静默）；`stats()` 暴露 6 个读数。
+  - `api/routes/tasks.py`：读取 `Last-Event-ID`，订阅时跳过 `seq <= last_event_id` 的帧；
+    非法/负值按"没有游标"处理（宁可重放，不静默吞帧）。
+  - `api/routes/health.py`：新增 `checks.sse`，输出 `subscriber_topics / subscribers / history_tasks /
+    dropped_without_loop / dropped_loop_closed / dropped_queue_full` —— `_dropped_without_loop` 有了出口。
+  - 新增 `tests/unit/test_event_bus_replay.py`；`tests/integration/test_api_stream.py` 加重连用例；
+    `tests/integration/test_api_health.py` 加出口用例（真的制造一次未绑 loop 的发布，断言读数为 1）。
+- **证据（2026-10-25 本机，Python 3.13 venv）**：
+  - `pytest tests/unit/test_event_bus_replay.py -o addopts= -q` → **5 passed**
+    （先 publish 2 帧再 subscribe 的确定性用例连跑 20 次，均得到 `[1, 2]`）；
+  - `pytest tests/integration/test_api_stream.py tests/integration/test_api_health.py -o addopts= -q`
+    → **20 passed**（含 `Last-Event-ID: 2` 时只回放 `[3,4,5]`、非法头不 500）；
+  - `test_stream_full_sequence` **连跑 20 次**：`pass=20 fail=0`。
+- **边界（不写成"无损"）**：
+  - 只补发**本进程内存里仍保留**的帧：每任务最多 256 帧、最后一次发布后 60s；进程重启不补发；
+  - 已终态任务仍走"首屏 snapshot + 终态补帧"快路径，不重放整条历史（既有契约不变）；
+  - 同一任务的 `seq` 由唯一 worker 的 `seq_box` 发号、严格递增，故 `Last-Event-ID` 对该任务 URL 可用。
+    原文"`id:` 跨连接不单调"应读作**跨任务**不可比；同一任务重连时它是单调的（口径更正）。
+- **复核**：待复核者确认。
+
 ---
 
 ### G-8 全量跑 pytest 偶发一条集成用例 setup ERROR（P2，flaky 登记）

@@ -17,7 +17,10 @@
 2. 关停时 loop 可能已关闭，``call_soon_threadsafe`` 会抛 ``RuntimeError``，
    必须吞掉并记 debug（否则刷屏）；
 3. 订阅队列设了 ``maxsize``，慢客户端会被丢事件并记 WARNING，
-   而不是让内存无限涨（设计文档 §9 R12）。
+   而不是让内存无限涨（设计文档 §9 R12）；
+4. 每个 topic 另有一份**有界**历史（``deque(maxlen=SUBSCRIBE_QUEUE_SIZE)``）：
+   新订阅先补发已发布帧，SSE 重连按 ``Last-Event-ID`` 跳过已见帧。
+   历史只在内存里、只保留 60s，进程重启即失效。
 """
 
 from __future__ import annotations
@@ -25,7 +28,8 @@ from __future__ import annotations
 import asyncio
 import json
 import logging
-import threading
+import time
+from collections import deque
 from collections.abc import Iterable
 from dataclasses import dataclass, field
 from typing import Any
@@ -33,6 +37,12 @@ from typing import Any
 from api.constants import SSE_RETRY_MS, SUBSCRIBE_QUEUE_SIZE
 
 logger = logging.getLogger(__name__)
+
+#: 历史帧保留时长（秒）。任务最后一次发布后 60s 内新订阅/重连仍能拿到这些帧；
+#: 更早的只能走 ``/trace`` 查库。进程重启后内存历史不保留 —— 这不是「无损回放」。
+HISTORY_TTL_SECONDS = 60.0
+#: 历史长度与订阅队列同容量：补发进一个空队列时不会触发 ``QueueFull``。
+HISTORY_MAXLEN = SUBSCRIBE_QUEUE_SIZE
 
 
 @dataclass(frozen=True, slots=True)
@@ -68,9 +78,16 @@ class EventBus:
 
     def __init__(self) -> None:
         self._subs: dict[str, set[asyncio.Queue[StreamEvent]]] = {}
+        #: 每个 topic 的有界历史（发布时刻, 事件）。只在 loop 线程读写。
+        self._history: dict[str, deque[tuple[float, StreamEvent]]] = {}
+        self._last_prune = 0.0
         self._loop: asyncio.AbstractEventLoop | None = None
         #: 给「尚未 attach loop 就想发布」的场景兜底，避免事件静默丢失时无从排查
         self._dropped_without_loop = 0
+        #: 关停期 loop 已关闭的丢弃数（预期内，但同样留一个读数）
+        self._dropped_loop_closed = 0
+        #: 订阅队列满导致真实丢弃的帧数（慢客户端）
+        self._dropped_queue_full = 0
 
     # ------------------------------------------------------------ 生命周期 --
     def attach_loop(self, loop: asyncio.AbstractEventLoop) -> None:
@@ -83,11 +100,50 @@ class EventBus:
         return self._loop
 
     # ---------------------------------------------------------------- 订阅 --
-    async def subscribe(self, task_id: str) -> asyncio.Queue[StreamEvent]:
-        """订阅某个任务的事件流，返回专属队列（必须在 loop 线程调用）。"""
+    async def subscribe(
+        self, task_id: str, *, last_event_id: int | None = None
+    ) -> asyncio.Queue[StreamEvent]:
+        """订阅某个任务的事件流，返回专属队列（必须在 loop 线程调用）。
+
+        Args:
+            task_id: 任务 id。
+            last_event_id: 客户端已见过的最大 ``seq``（SSE 的 ``Last-Event-ID``）。
+                ``None`` = 首次订阅，补发内存里仍保留的全部历史帧；给了值则跳过
+                ``seq <= last_event_id`` 的帧，避免重连后重复渲染。
+
+        Note:
+            本方法与 :meth:`_fanout` 都在 loop 线程执行，中间没有 ``await``，
+            所以「读历史 + 入队 + 挂订阅」对发布是原子的：不会漏帧也不会双发。
+        """
         queue: asyncio.Queue[StreamEvent] = asyncio.Queue(maxsize=SUBSCRIBE_QUEUE_SIZE)
+        now = time.monotonic()
+        self._prune_history(now)
+        replayed = 0
+        for _published_at, event in self._history.get(task_id, ()):
+            if (
+                last_event_id is not None
+                and event.seq is not None
+                and event.seq <= last_event_id
+            ):
+                continue
+            try:
+                queue.put_nowait(event)
+                replayed += 1
+            except asyncio.QueueFull:  # 历史容量 == 队列容量；留作防御计数
+                self._dropped_queue_full += 1
+                logger.warning(
+                    "补发历史时队列已满，丢弃事件 task_id=%s name=%s seq=%s",
+                    task_id,
+                    event.name,
+                    event.seq,
+                )
         self._subs.setdefault(task_id, set()).add(queue)
-        logger.debug("SSE 订阅 task_id=%s 当前订阅数=%d", task_id, len(self._subs[task_id]))
+        logger.debug(
+            "SSE 订阅 task_id=%s 补发=%d 当前订阅数=%d",
+            task_id,
+            replayed,
+            len(self._subs[task_id]),
+        )
         return queue
 
     async def unsubscribe(self, task_id: str, queue: asyncio.Queue[StreamEvent]) -> None:
@@ -113,14 +169,25 @@ class EventBus:
         loop = self._loop
         if loop is None:
             self._dropped_without_loop += 1
-            logger.debug(
-                "事件总线尚未绑定事件循环，丢弃事件 task_id=%s name=%s", event.task_id, event.name
-            )
+            if self._dropped_without_loop == 1:
+                logger.warning(
+                    "事件总线尚未绑定事件循环，事件被丢弃 task_id=%s name=%s"
+                    "（后续同类丢弃只记 debug，计数见 /health 的 sse 项）",
+                    event.task_id,
+                    event.name,
+                )
+            else:
+                logger.debug(
+                    "事件总线尚未绑定事件循环，丢弃事件 task_id=%s name=%s",
+                    event.task_id,
+                    event.name,
+                )
             return
         try:
             loop.call_soon_threadsafe(self._fanout, event)
         except RuntimeError as exc:
             # 关停中 loop 已关闭：这是预期内的，记 debug 而不是 error
+            self._dropped_loop_closed += 1
             logger.debug("事件循环已关闭，丢弃事件 %s/%s：%s", event.task_id, event.name, exc)
 
     def publish_from_loop(self, event: StreamEvent) -> None:
@@ -131,18 +198,70 @@ class EventBus:
     publish_nowait_from_loop = publish_from_loop
 
     def _fanout(self, event: StreamEvent) -> None:
-        """把一个事件扇出给该任务的全部订阅者（**只在 loop 线程执行**）。"""
+        """把一个事件扇出给该任务的全部订阅者（**只在 loop 线程执行**）。
+
+        顺序是「先记历史、再逐队列投递」：新订阅者补发的是**已发布**的帧，
+        与它已经在队列里的 live 帧不重叠（两者在同一线程里原子衔接）。
+        """
+        now = time.monotonic()
+        self._remember(event, now)
+        self._prune_history(now)
         targets: Iterable[asyncio.Queue[StreamEvent]] = tuple(self._subs.get(event.task_id, ()))
         for queue in targets:
             try:
                 queue.put_nowait(event)
             except asyncio.QueueFull:
+                self._dropped_queue_full += 1
                 logger.warning(
                     "订阅队列已满，丢弃事件 task_id=%s name=%s seq=%s（客户端消费过慢）",
                     event.task_id,
                     event.name,
                     event.seq,
                 )
+
+    def _remember(self, event: StreamEvent, now: float) -> None:
+        """把带 ``seq`` 的帧记入该任务的有界历史；连接本地合成帧不入历史。"""
+        if event.seq is None:
+            return
+        frames = self._history.get(event.task_id)
+        if frames is None:
+            frames = deque(maxlen=HISTORY_MAXLEN)
+            self._history[event.task_id] = frames
+        frames.append((now, event))
+
+    def _prune_history(self, now: float) -> None:
+        """惰性清理超过 TTL 的历史（最多每秒扫一次，避免每条事件都 O(任务数)）。"""
+        if now - self._last_prune < 1.0:
+            return
+        self._last_prune = now
+        stale = [
+            task_id
+            for task_id, frames in self._history.items()
+            if not frames or now - frames[-1][0] > HISTORY_TTL_SECONDS
+        ]
+        for task_id in stale:
+            self._history.pop(task_id, None)
+
+    def stats(self) -> dict[str, int]:
+        """可观测性快照（``/health`` 的 ``sse`` 项）。
+
+        读取方可能在另一个线程（同步健康检查跑在 threadpool），而 ``_subs`` 由
+        loop 线程增删 —— 对 topic 列表与计数做一次防御性快照，极端并发窗口下
+        本轮读数为 0，不影响服务本身。
+        """
+        try:
+            topic_ids = list(self._subs)
+            subscribers = sum(len(self._subs.get(task_id, ())) for task_id in topic_ids)
+        except RuntimeError:  # pragma: no cover - 与 loop 线程并发增删 topic 的窗口
+            topic_ids, subscribers = [], 0
+        return {
+            "subscriber_topics": len(topic_ids),
+            "subscribers": subscribers,
+            "history_tasks": len(self._history),
+            "dropped_without_loop": self._dropped_without_loop,
+            "dropped_loop_closed": self._dropped_loop_closed,
+            "dropped_queue_full": self._dropped_queue_full,
+        }
 
 
 # --------------------------------------------------------------------------- #

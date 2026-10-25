@@ -225,6 +225,7 @@ def _collect_frames(
     client: TestClient,
     task_id: str,
     path: str = "/tasks/{task_id}/stream",
+    headers: dict[str, str] | None = None,
 ) -> list[tuple[str, int | None, dict[str, Any]]]:
     """读完整条流，返回 ``(事件名, ``id:`` 或 None, data)``。
 
@@ -235,7 +236,9 @@ def _collect_frames(
     event_name = ""
     data_lines: list[str] = []
     frame_id: int | None = None
-    with client.stream("GET", path.format(task_id=task_id), timeout=15.0) as response:
+    with client.stream(
+        "GET", path.format(task_id=task_id), headers=headers, timeout=15.0
+    ) as response:
         assert response.status_code == 200
         for line in response.iter_lines():
             if line.startswith("event:"):
@@ -359,3 +362,65 @@ def test_format_frame_omits_id_line_when_seq_is_none() -> None:
     assert with_id.startswith("id: 7\n")
     assert without_id.startswith("event: heartbeat\n")
     assert "id:" not in without_id
+
+
+# --------------------------------------------------------------------------- #
+# G-7：订阅历史补发 + Last-Event-ID 重连
+# --------------------------------------------------------------------------- #
+def test_reconnect_with_last_event_id_skips_seen_frames(api_env: TestClient) -> None:
+    """★ 重连带 ``Last-Event-ID``：真实 SSE 路由只回放 ``seq > last_event_id`` 的帧。
+
+    为什么不用「真跑一条慢任务、断开再连」：Starlette ``TestClient`` 的同步
+    ``stream()`` 会**缓冲整条响应**（实测第一行要等任务终态才到），没法在任务运行中
+    完成第二次订阅。这里把任务行停在 ``queued``、直接向事件总线预置 1..4 帧与一帧
+    ``done``，让路由走真实的 ``subscribe → 补发 → 逐帧 yield`` 路径 —— 终态帧会让
+    流自然关闭，用例完全确定性。
+    """
+    from api.deps import get_database, get_event_bus
+    from api.events import StreamEvent
+
+    task_id = "task-g7-replay01"
+    get_database().save_task(task_id=task_id, task="预置历史的补发任务", status="queued")
+
+    def _node(seq: int) -> StreamEvent:
+        return StreamEvent(
+            task_id=task_id,
+            name="node",
+            seq=seq,
+            data={
+                "task_id": task_id,
+                "node": "planner",
+                "iteration": 0,
+                "seq": seq,
+                "ts": "2026-10-25T00:00:00+00:00",
+                "update": {},
+            },
+        )
+
+    bus = get_event_bus()
+    for seq in (1, 2, 3, 4):
+        bus.publish_from_loop(_node(seq))
+    bus.publish_from_loop(
+        StreamEvent(
+            task_id=task_id,
+            name="done",
+            seq=5,
+            data={"task_id": task_id, "status": "done", "final_answer": "ok"},
+        )
+    )
+
+    frames = _collect_frames(api_env, task_id, headers={"Last-Event-ID": "2"})
+
+    assert [name for name, _i, _d in frames] == ["snapshot", "node", "node", "done"]
+    assert [frame_id for _n, frame_id, _d in frames if frame_id is not None] == [3, 4, 5]
+
+
+def test_stream_invalid_last_event_id_is_ignored(api_env: TestClient) -> None:
+    """非法 ``Last-Event-ID`` 按「没有游标」处理：流照常可读，不 500。"""
+    body = _submit(api_env, "非法游标头任务")
+    poll_terminal(api_env, body["task_id"])
+
+    frames = _collect_frames(
+        api_env, body["task_id"], headers={"Last-Event-ID": "not-a-number"}
+    )
+    assert [name for name, _i, _d in frames] == ["snapshot", "done"]
