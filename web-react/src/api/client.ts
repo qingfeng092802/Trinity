@@ -8,6 +8,7 @@ import type {
   DocumentUploadAck,
   DocumentView,
   KnowledgeOverview,
+  KnowledgeSearchResponse,
   LogEvent,
   ModelKeyAck,
   ModelKeyProbeView,
@@ -51,6 +52,7 @@ import type { LiveDelta, LiveUsageDelta } from '../utils/liveAnswer';
  *   GET  /knowledge/documents       → 文档列表（后端按创建时间倒序）
  *   GET  /knowledge/documents/{id}  → 单文档详情（索引进度轮询就读它）
  *   POST /knowledge/documents       → 上传（multipart，201 = 已受理排队，非索引完成）
+ *   POST /knowledge/search          → 试检索（JSON body：query / top_k，空库 200 + hits: []）
  *   DELETE /knowledge/documents/{id}→ 物理删（chunk + 向量 + 记录 + 磁盘原件）
  *   POST /knowledge/documents/{id}/retry → 重试 failed（回 pending 全量重跑）
  *   GET  /eval/retrieval-report     → 最近一次检索评测报告（只读透传）
@@ -579,6 +581,24 @@ export async function validateModelKey(provider: string, apiKey: string): Promis
 
 export async function fetchKnowledgeOverview(): Promise<KnowledgeOverview> {
   return getJson<KnowledgeOverview>('/knowledge/overview');
+}
+
+/** 试检索：**POST**，不是 README 旧版写的 GET。
+ *
+ * 请求体是 ``{query, top_k, bm25_weight?, vector_weight?}``；空库返回 200 + hits: []，
+ * 调用方要把空列表当“库为空/没命中”展示，而不是当错误。409 fingerprint_mismatch
+ * 走统一的 ApiFetchError，由页面提示全量重索引。 */
+export async function searchKnowledge(payload: {
+  query: string;
+  top_k?: number;
+  bm25_weight?: number;
+  vector_weight?: number;
+}): Promise<KnowledgeSearchResponse> {
+  return getJson<KnowledgeSearchResponse>('/knowledge/search', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(payload),
+  });
 }
 
 /** 文档列表（后端按创建时间倒序排好，前端不再排）。 */

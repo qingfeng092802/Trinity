@@ -72,7 +72,7 @@
 | **轨迹回放** | 任务执行过程的事件流落库，可在控制台逐节点回放。 |
 | **检索评测与消融框架** | 检索质量评测（top-k 命中率 / MRR，零 LLM 调用）、YAML 任务集回归、严格单变量的检索消融实验（`evaluation/` + `scripts/`）。 |
 | **多供应商 LLM** | 默认 **DeepSeek**。`core/llm/providers.py` 的供应商表登记三家：`deepseek` / `zhipu`（智谱 GLM）/ `qwen`（阿里云千问），各带官网端点、独立 Key 字段与定价行（表内共 **10** 个核过价的模型 id）。**表外的任意值**（`openai`、自建网关常用的 `custom`……）不报错也不需改代码：端点与 Key 一律回落到 `LLM_BASE_URL` + `LLM_API_KEY`，即**任何 OpenAI 兼容端点**都能跑，只是峰谷折扣自动降为 ×1.0（核实不了网关背后怎么计费 ⇒ 宁可高估，不套 DeepSeek 的低谷半价）。实际端点由**模型 id** 决定，`LLM_PROVIDER` 只是那条 `.env` 通道的标签——口径块见[配置](#配置)。Key 在响应、日志、异常中一律脱敏，且仅存活于进程内存（不落盘）。 |
-| **React 控制台** | **四页**界面（路由见 `web-react/src/App.tsx:49-52`）：任务与日志 / 轨迹回放 / 评测与消融 / **知识库**（文档上传、解析与索引状态机进度、文档与 chunk 读数）。⚠️ 检索测试**不在这个页面上**——控制台里没有任何一处调 `GET /knowledge/search`（实测 grep = 0），要试检索请走 API，或让 Agent 用 `knowledge_search` 工具。亮暗双主题、桌面与移动双端适配。 |
+| **React 控制台** | **四页**界面（路由见 `web-react/src/App.tsx:49-52`）：任务与日志 / 轨迹回放 / 评测与消融 / **知识库**（文档上传、解析与索引状态机进度、文档与 chunk 读数、**试检索**：BM25 / 向量 / 综合分三列）。亮暗双主题、桌面与移动双端适配。 |
 
 ---
 
@@ -337,7 +337,7 @@ npm run dev              # http://127.0.0.1:5173，/api 与 /sse 代理到后端
 | `GET /tasks/{id}/cost-breakdown` | 按角色的成本归因 |
 | `POST /tools/{name}/invoke` | 调用单个工具 |
 | `POST /knowledge/documents` | 上传知识库文档（`md` / `pdf` / `txt` 三种，白名单唯一来源 `api.constants.DOC_SUPPORTED_FORMATS`；其它后缀回 422 `unsupported_format`） |
-| `GET /knowledge/search` | 知识库检索 |
+| `POST /knowledge/search` | 知识库检索（JSON body：`query` / `top_k`） |
 | `GET /health` | 健康检查（`?deep=true` 真实调一次 LLM） |
 | `GET /models`、`POST /models/override`、`POST /models/key` | 模型/Key 运行时档位（详见[安全说明](#安全说明)） |
 | `GET /config`、`GET /stats`、`GET /eval/*` | 运行配置、统计、评测查询 |
@@ -364,14 +364,17 @@ npm run dev              # http://127.0.0.1:5173，/api 与 /sse 代理到后端
 BASE=http://127.0.0.1:8001
 # 1) 起后端后，上传示例文档（data/demo_docs/ 已随仓库提供）
 curl -F "file=@data/demo_docs/01_员工手册.md" "$BASE/knowledge/documents"
-# 2) 检索（控制台没有检索入口，这条只能走 API —— 见已知边界 B-4）
-curl "$BASE/knowledge/search?q=%E6%8A%A5%E9%94%80%E6%B5%81%E7%A8%8B&top_k=3"
+# 2) 检索（知识库页也有同一条「试检索」面板；端点是 POST + JSON body，没有 GET）
+curl -sS -X POST "$BASE/knowledge/search" \
+  -H "Content-Type: application/json" \
+  --data-binary @- <<'JSON'
+{"query":"报销流程","top_k":3}
+JSON
 ```
 
-> 中文查询串写成 URL 编码是刻意的：`curl.exe` 把终端码页的字节原样发出去，Windows 控制台默认
-> GBK(936) 时后端按 UTF-8 解出来就是乱码，而它的表现是"**检索没命中**"而不是"编码错了"——
-> 很容易被误读成知识库坏了。UTF-8 终端里可以直接写
-> `curl -G --data-urlencode "q=报销流程" "$BASE/knowledge/search" --data-urlencode "top_k=3"`。
+> 请求体是 JSON，不是 URL query。这里用 `--data-binary @-` 让 shell 直接传 UTF-8
+> 字节：Windows 控制台的 `-d '{"query":"中文"}'` 可能按 GBK 发出，后端会报
+> “error parsing the body”，看起来像接口坏了。也可以把 query 写成 JSON `\uXXXX` 转义。
 
 ---
 
@@ -449,7 +452,7 @@ pytest tests -q            # CI 跑的就是这一条
 | **A-3** | `/health` 在鉴权豁免清单里，而它带 `?deep=true` 会**真调一次 LLM**——免鉴权 + 非回环时同网段任何人可反复烧额度（顺带白送一批零 token 的接口） | 不设 token：`curl "$BASE/health?deep=true"` 会产生一次真实调用（`GET /health` 不带参数不会） |
 | **A-5** | 代码沙箱**只有墙钟超时**，没有 CPU / 内存 / 磁盘 / 输出字节的上限；子进程 stdout 无上限灌进 API 进程，只在最后一步截断展示。而队列与在途任务都活在这一个进程里 | `grep -c "setrlimit" core/tools/sandbox.py` ⇒ **0**，代码里只搜得到 `timeout=` |
 | **B-1** | 任务列表只在"最近 **30** 条"里筛：后端支持 `status` / `limit`（上限 200）/ `offset` 并返回 `total`，前端两个页面都写死 `fetchTaskList(30)` 再在本地 `filter` ⇒ 超出的历史任务在界面上**根本不存在**，且不报错、不红屏 | `grep -n "offset=" web-react/src/api/client.ts` ⇒ **0** |
-| **B-4** | 知识库页**没有检索测试**（上传、解析/索引状态机进度、文档与 chunk 读数都在），`GET /knowledge/search` 只在 API 侧 | `grep -rn "knowledge/search" web-react/src` ⇒ **0** |
+| **B-4** | 知识库页**没有检索测试**（修复前；上传、解析/索引状态机进度、文档与 chunk 读数都在，`POST /knowledge/search` 只在 API 侧）。**v0.2.0 已加「试检索」面板（待复核）** | 修复前 `grep -rn "knowledge/search" web-react/src` ⇒ 0；v0.2.0 起同一命令有调用，页面可直接检索 |
 | **C-1** | 今天的代码**不产 p 值**：McNemar / Wilcoxon / Holm–Bonferroni 已于 2026-09-21 整条删除（样本量给不出可信 p，只报 Δ 与逐题判据）。**仓库里出现的 p 值全部是历史留档**，包括本文的 30 秒摘要 | `grep -n "significance_removed" evaluation/ablation.py` |
 | **C-2** | 消融矩阵与 nDCG@5 那张 15 臂表仍是**旧度量口径**（向量度量纠正后只复跑了检索评测，nDCG 没重跑）⇒ 跨表比数字会错 | 对比 `python scripts/eval_retrieval.py`（新口径、零 LLM）与 `docs/m3_design.md` 的 15 臂表 |
 | **C-3** | 报告头号结论（精排 **+3.66pp**）在作者本机**不可复跑**：精排臂要 `torch` / `transformers`（≈2 GB），没装就固定 **4 条 skip**（是缺依赖，不是失败，也不是"测试变少了"） | `python -c "import torch"` 报错；`pytest -q` 尾行的 `4 skipped` |

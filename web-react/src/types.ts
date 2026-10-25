@@ -555,6 +555,26 @@ export interface KnowledgeOverview {
   supported_formats?: string[];
 }
 
+/** POST /knowledge/search 的一条命中（分数是单次查询内归一化的相对分）。 */
+export interface KnowledgeSearchHit {
+  document_name: string;
+  chunk_seq: number;
+  start_char: number;
+  end_char: number;
+  text: string;
+  bm25_score: number;
+  vector_score: number;
+  score: number;
+}
+
+/** POST /knowledge/search 的 200 响应；空库返回 hits: []，不是错误。 */
+export interface KnowledgeSearchResponse {
+  query: string;
+  top_k: number;
+  took_ms: number;
+  hits: KnowledgeSearchHit[];
+}
+
 /** 文档状态机里**已知**的六个值，与 ``api/constants.py`` 的 ``DOC_*`` 一一对应。
  *
  * ⚠️ 刻意**不**把 `DocumentView.status` 的类型写成这个联合：

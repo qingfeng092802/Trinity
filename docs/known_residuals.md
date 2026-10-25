@@ -120,12 +120,30 @@ Windows 上得引 Job Object / AppContainer —— 那不是"一行顺手"的量
 ### B-4 知识库页没有检索测试（P2）
 
 **现象**：知识库页提供上传、解析/索引状态机进度、文档与 chunk 读数，**没有**检索输入框；
-`GET /knowledge/search` 只在 API 侧。
-**判据**：`grep -rn "knowledge/search" web-react/src` ⇒ **0**。
+`POST /knowledge/search` 只在 API 侧（修复前）。
+**判据**：修复前 `grep -rn "knowledge/search" web-react/src` ⇒ **0**；v0.2.0 起该命令有调用。
 **影响**：想验一条检索结果得开 curl 或让 Agent 走 `knowledge_search` 工具。README 的功能表已把
 这句话写进去，免得人来者页面上找搜索框。
 **关闭条件**：在知识库页加一个"试检索"小面板（复用 `/knowledge/search`，把 `bm25_score` /
 `vector_score` / `score` 三列都摆出来），顺带能演示权重对排序的实际影响。
+
+#### 关闭申报（2026-10-25，待复核，未勾关闭）
+
+- **结论**：已修复
+- **修改文件**：`web-react/src/pages/KnowledgePage.tsx`、`web-react/src/api/client.ts`、`web-react/src/types.ts`、`web-react/src/index.css`、`web-react/tools/uicheck/kbSearch.cjs`；`README.md` 与本节同步改为 `POST /knowledge/search`。
+- **复跑命令**：
+
+```bash
+cd web-react
+npm run typecheck
+npm run build
+NODE_PATH='C:\Users\15539\.workbuddy\binaries\node\workspace\node_modules' \
+  node tools/uicheck/kbSearch.cjs
+```
+
+- **复跑读数（2026-10-25）**：真实检索命中 **5** 条；首条含 `BM25 1.0000` / `向量 1.0000` / `综合 1.0000`；网络请求只有 `POST /api/knowledge/search`，无 GET；空库桩返回 `200 + hits: []` 时页面显示“库为空”；409 `fingerprint_mismatch` 桩显示“需要全量重索引”。
+- **失败路径/边界用例**：空库不报错；409 走现有 `ApiFetchError` 文案；检索只发 POST；`top_k` 选择器 1~20（默认 5）。
+- **复核**：待复核者确认；本条未勾关闭。
 
 ---
 
@@ -519,8 +537,8 @@ Mock 造两条 `llm_call` 的节点），让 T1 先红一次；② 再二选一�
 ## 一句话版本（给只读三行的人）
 
 默认免鉴权且前端带不了 token（A-1/A-2）、`/health?deep=true` 能白烧额度（A-3）、
-上传与沙箱都没有第二道资源闸（A-4/A-5）、控制台比旧版少了看板/服务端分页/token 输入/检索测试
-（B-1…B-4）、评测里的 p 值与 nDCG 表都是历史口径且头号结论本机不可复跑（C-1…C-3）、
+上传与沙箱都没有第二道资源闸（A-4/A-5）、控制台比旧版少了看板/服务端分页/token 输入
+（B-1…B-3；B-4 检索测试已在 v0.2.0 补上）、评测里的 p 值与 nDCG 表都是历史口径且头号结论本机不可复跑（C-1…C-3）、
 可观测性只做到服务端一半（D-1…D-5）、依赖无 lock（E-1）、语料许可没进 LICENSE（F-1）、
 门禁对测试代码是半盲区、版本号有两个手写位且没人检查它、CI 只管测试不管 ruff/mypy/tsc（G-1/G-2/G-5/G-6）、
 SSE 那条流名为"从头订阅"其实不补发历史帧，丢了多少也没有计数器出口（G-7）、
