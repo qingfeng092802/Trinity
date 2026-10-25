@@ -493,6 +493,27 @@ Mock 造两条 `llm_call` 的节点），让 T1 先红一次；② 再二选一�
 **影响**：同屏两个数 —— 按角色那张表读事件侧（全的），任务列表与 `tasks.cost` 读节点侧（少的）。
 别把 `tasks.cost` 当账单，也别拿它做预算闸。
 
+#### 关闭申报（2026-10-25，待复核，未勾关闭）
+
+- **结论**：已修复（代码 + 历史 done 任务成本回填）
+- **修改文件**：`core/agent/base.py`（节点级累加）、`tests/unit/test_agent_usage_accumulation.py`（3 条单测）、`scripts/backfill_tasks_cost.py`（一次性回填，dry-run 默认，`--apply` 才写库）
+- **dry-run 读数**（2026-10-25，`status='done'`，`event_type='llm_call'`）：
+
+| task_id | llm_call 条数 | 旧 cost | 新 cost | 差额 | 少算 |
+|---|---:|---:|---:|---:|---:|
+| `task-804d76037a07` | 6 | 0.055564 | 0.085106 | +0.029542 | 34.71% |
+| `task-b166a147ffad` | 6 | 0.024242 | 0.038851 | +0.014609 | 37.60% |
+| `task-d98f1db80457` | 6 | 0.022763 | 0.032766 | +0.010003 | 30.53% |
+
+- **apply 读数**：备份 `data/backfill_tasks_cost_20261025.json`；回填 3 条 `tasks.cost`；`task_events` / `duration_ms` / `status` 未修改；取消任务未触碰。
+- **复跑命令 2（成本）**：36 条任务，`cost_not_equal = 1`，只剩 `task-1365c179c055`（canceled）：
+  `tasks.cost=0.0` vs `Σ llm_call.cost=0.012591495`。
+- **复跑命令 3（耗时）**：`duration_mismatch = 1`，同样只剩 `task-1365c179c055`（canceled）：
+  `duration_ms=0` vs `Σ node_end=23612`。回填未影响耗时口径。
+- **回填后样本**：3 条历史 done 与 `task-c18c301585f0` 的 `|tasks.cost - Σ llm_call.cost|` 分别为 2.8e-7 / 2.0e-7 / 2.1e-7 / 1.3e-7，均 ≤1e-6。
+- **失败路径/边界用例**：无 `event_sink` 批量评测仍累加；有事件通道时 3 条 `llm_call` 不双计；同一节点连续两次调用会重置；取消任务按计划排除。
+- **复核**：待复核者确认；本条未勾关闭。
+
 ---
 
 ## 一句话版本（给只读三行的人）
