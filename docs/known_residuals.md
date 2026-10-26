@@ -424,9 +424,12 @@ grep -c "^\s*run:" .github/workflows/ci.yml   # 2（一条装依赖、一条跑�
 ② 语义承认"从订阅时刻起"：把用例的 `>= 2` 改成断言"终态必到 + 收到的帧单调递增"，
 并在文档与 docstring 里把这句写进契约。② 便宜且不碰生产代码，① 才是用户以为的那件事。
 
-**关闭申报（2026-10-25，待复核，未勾关闭）**
+**关闭申报（2026-10-25，待复核，未勾关闭；按方案 B 收口）**
 
-- **结论**：已修复（采用关闭条件 ①；历史源是 EventBus 的**内存**环形缓冲，不是 TraceStore 回放）。
+- **结论**：按方案 B 收口 —— 运行中任务订阅时补发内存历史；**已终态任务只保证
+  `snapshot + done`，不保证 node 历史**（完整轨迹走 `/trace`）。
+- **方案 B 契约**：终态快路径是既有 P0-6.3 契约，改成整段回放会改变 UI 与 `/trace`
+  对账的去重语义；本轮不扩大生产代码改动，只把契约显式化并用确定性用例钉住。
 - **改动**：
   - `api/events.py`：每 topic 一份有界历史 `deque(maxlen=SUBSCRIBE_QUEUE_SIZE)`；
     `subscribe(task_id, last_event_id=...)` 先补发、再挂队列 —— 两者与 `_fanout` 同在 loop 线程且
@@ -437,22 +440,27 @@ grep -c "^\s*run:" .github/workflows/ci.yml   # 2（一条装依赖、一条跑�
   - `api/routes/health.py`：新增 `checks.sse`，输出 `subscriber_topics / subscribers / history_tasks /
     dropped_without_loop / dropped_loop_closed / dropped_queue_full` —— `_dropped_without_loop` 有了出口。
   - 新增 `tests/unit/test_event_bus_replay.py`；`tests/integration/test_api_stream.py` 加
-    **fresh-subscribe 补发**（预置 1..4+done，断言 `[1,2,3,4,5]`，连跑 20 次）与
-    **Last-Event-ID 重连跳过**用例；`tests/integration/test_api_health.py` 加出口用例
-    （真的制造一次未绑 loop 的发布，断言读数为 1）。
+    **fresh-subscribe 补发**（预置 1..4+done，断言 `[1,2,3,4,5]`）、
+    **Last-Event-ID 重连跳过**、以及**先终态再订阅**的确定性用例
+    `test_terminal_before_subscribe_returns_snapshot_and_done_only`；
+    `tests/integration/test_api_health.py` 加出口用例（真的制造一次未绑 loop 的发布，断言读数为 1）。
 - **证据（2026-10-25 本机，Python 3.14.6 venv）**：
+  - **确定性单跑**（方案 B 的核心判据）：
+    `pytest "tests/integration/test_api_stream.py::test_terminal_before_subscribe_returns_snapshot_and_done_only" -o addopts= -q`
+    → **1 passed in 1.76 s**（先 `poll_terminal` 再建流，断言恰好 `["snapshot","done"]`、无 node 帧）；
   - `pytest tests/unit/test_event_bus_replay.py -o addopts= -q` → **5 passed**
     （先 publish 2 帧再 subscribe 的确定性用例连跑 20 次，均得到 `[1, 2]`）；
   - `pytest tests/integration/test_api_stream.py tests/integration/test_api_health.py -o addopts= -q`
-    → **21 passed**（含 fresh-subscribe 全量回放、`Last-Event-ID: 2` 时只回放 `[3,4,5]`、
-    非法头不 500）；
-  - `test_stream_full_sequence` **连跑 20 次**：`pass=20 fail=0`；
-  - 全量 `pytest tests -o addopts= -q` → **1,091 passed / 0 skipped / 0 failed / 0 error**（84.0 s）。
+    → **22 passed**（含 fresh-subscribe 全量回放、`Last-Event-ID: 2` 时只回放 `[3,4,5]`、
+    非法头不 500、终态只回两帧）；
+  - `test_stream_full_sequence` 连跑 20 次：`pass=20 fail=0` —— **仅作辅助，不代替上面的确定性断言**；
+  - 全量 `pytest tests -o addopts= -q` → **1,092 passed / 0 skipped / 0 failed / 0 error**（98.35 s）。
 - **边界与用例口径（不写成"无损"）**：
   - 只补发**本进程内存里仍保留**的帧：每任务最多 256 帧、最后一次发布后 60s；进程重启不补发；
-  - 已终态任务仍走"首屏 snapshot + 终态补帧"快路径，**不重放整条历史**（既有契约不变）——
-    因此 `test_stream_full_sequence` 改用「慢任务」保证建流发生在运行中；补发语义由
-    预置历史的 fresh-subscribe / 重连两条确定性用例覆盖，不靠时序碰运气；
+  - **终态任务走快路径，只发首屏 `snapshot` + 终态补帧，不重放 node 历史**；要完整回放请查 `/trace`
+    （这就是方案 B 的显式契约）；
+  - `test_stream_full_sequence` 用「慢任务」保证建流发生在运行中；run-time 补发语义由
+    fresh-subscribe / 重连两条预置历史用例确定性覆盖；
   - 同一任务的 `seq` 由唯一 worker 的 `seq_box` 发号、严格递增，故 `Last-Event-ID` 对该任务 URL 可用。
     原文"`id:` 跨连接不单调"应读作**跨任务**不可比；同一任务重连时它是单调的（口径更正）。
 - **复核**：待复核者确认。

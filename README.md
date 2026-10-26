@@ -31,7 +31,7 @@
 - **三角色不是摆设，是被完整执行的**：下图那次真实任务（“1024 路摄像头整机功耗怎么估算”）——Planner 拆 3 步 → Executor 检索命中 4 个 chunk（最高相似度 **0.83**）并用 `code_exec` 算出 **15 230.75 W** → Reviewer 首评 **6 分打回**，要求补 IEEE 802.3af/802.3at 标准引用 → 补引后复评 **8 分通过**。全程 **9.23 s / 2,383 tokens**（入 1,918 / 出 465），每一步事件落库、可在[轨迹回放](#界面预览)逐节点重放。
 - **检索评测是可复算的**：1,000 篇中文语料（CMRC2018）+ 300 题任务集，检索侧 **API 成本 ¥0**（零 LLM 调用，复算入口是 `scripts/eval_retrieval.py`）。**刻意不做配对显著性检验**——样本量撑不起多族校正后的功效，McNemar / Wilcoxon / Holm–Bonferroni 那条链已于 2026-09-21 整条删除，今天只报 **Δ 与逐题判据**。最硬的一条结论：**精排是真收益**——nDCG@5 **0.9586 → 0.9952（Δ +3.66pp）**；同一语料上纯 BM25（0.9654）**不低于**混合检索（0.9586）。⚠️ 这两个 nDCG 绝对值属**旧度量口径**（向量度量纠正后只复跑了检索评测，nDCG 那张表没重跑），而精排臂在没装 `torch` 的机器上**不可复跑**——限定都写在[已知边界](#已知边界) C-2 / C-3，全表与口径见 [`docs/m3_ablation_report.md`](docs/m3_ablation_report.md)。
 - **成本归因到角色**：Planner / Executor / Reviewer 的 token 与费用分开记账，支持峰谷时段计费（北京时间工作日 09–12、14–18 为高峰 ×1.0，其余 ×0.5）。
-- **测试不花一分钱**：**1,091 条用例**（841 单元 + 250 集成；截至 2026-10-25，复算命令见[测试](#测试)）全部由 Mock LLM 驱动，**零真实 token 消耗**，CI 全量跑。
+- **测试不花一分钱**：**1,092 条用例**（841 单元 + 251 集成；截至 2026-10-25，复算命令见[测试](#测试)）全部由 Mock LLM 驱动，**零真实 token 消耗**，CI 全量跑。
 
 ![真实运行 · 任务与日志页：Planner 三步规划、RAG 命中 4 个 chunk（最高 0.83）、Reviewer 首评 6 打回补 IEEE 引用后复评 8 通过，全程 9.23s / 2,383 tokens](docs/screenshots/01-tasks-desktop-light.png)
 
@@ -425,20 +425,22 @@ pytest tests -q            # CI 跑的就是这一条
 - **用例数怎么自己复算**（别抄任何文档里的裸数字，包括下面这行读数）：
 
   ```bash
-  python -m pytest -o addopts= -q --collect-only | tail -1                       # 1091 tests collected
+  python -m pytest -o addopts= -q --collect-only | tail -1                       # 1092 tests collected
   python -m pytest tests/unit -o addopts= -q --collect-only | tail -1            # 841 tests collected
-  python -m pytest tests/integration -o addopts= -q --collect-only | tail -1     # 250 tests collected
+  python -m pytest tests/integration -o addopts= -q --collect-only | tail -1     # 251 tests collected
   ```
 
   `-o addopts=` 是必要的：`pyproject.toml` 的 `addopts = "-q"` 会和命令行那个 `-q` 叠成双层 quiet，
   而双层 quiet 下 `--collect-only` **不打印** "N tests collected" 那一行（实测读不出数）。
-- **当前读数**（2026-10-25 在本工作树实跑）：收集 **1,091** = 单元 **841** + 集成 **250**；
-  全量 **1,091 passed / 0 skipped / 0 failed / 0 error**，84.0 s。v0.2.0 新增了 H-2 / G-7 /
-  B-4 / `sql_query` 的用例；`test_stream_full_sequence` 单测连跑 **20 次全绿**（G-7 关闭申报）。
+- **当前读数**（2026-10-25 在本工作树实跑）：收集 **1,092** = 单元 **841** + 集成 **251**；
+  全量 **1,092 passed / 0 skipped / 0 failed / 0 error**，98.35 s。v0.2.0 新增了 H-2 / G-7 /
+  B-4 / `sql_query` 的用例；`test_stream_full_sequence` 单测连跑 **20 次全绿**（G-7 关闭申报，辅助证据）。
   ⚠️ 2026-10-07 曾在全量跑中偶发 `test_stream_full_sequence` 失败（SSE 只收到 1 条 node 增量，
   断言要求 ≥2），根因是事件总线不补发历史帧。v0.2.0 已补**内存**历史帧与 `Last-Event-ID` 跳过；
-  历史每任务最多 256 帧、最后发布后保留 60s，**跨进程重启不补** ⇒ 仍别把这条流当**无损**投递，
-  终态对账仍以 `/trace` 为准。完整申报见 [`docs/known_residuals.md`](docs/known_residuals.md) 的 **G-7**。
+  **方案 B 契约**：终态任务只保证 `snapshot + done`、不保证 node 历史，完整轨迹走 `/trace`
+  （确定性用例 `test_terminal_before_subscribe_returns_snapshot_and_done_only` 单跑 1 passed）。
+  历史每任务最多 256 帧、最后发布后保留 60s，**跨进程重启不补** ⇒ 仍别把这条流当**无损**投递。
+  完整申报见 [`docs/known_residuals.md`](docs/known_residuals.md) 的 **G-7**。
 - 那 **4 条可选 skip 不是失败**：可选重排/嵌入臂要 `torch` + `transformers`（≈2 GB）
   与本地权重，缺依赖就整条跳过。本机 `.venv` 已装 `torch 2.14.0+cpu` / `transformers 5.17.0`，
   所以这次全量是 **0 skip**；判据：`tests/unit/test_rag_embedder.py` 三条 +
@@ -509,7 +511,8 @@ C-4（judge 与被测系统同源、外部内容裸插值进 prompt）、C-5（�
 E-2/E-3/E-4（Python 版本多套口径、heredoc 装依赖、embedding 权重来源由代码 `setdefault`
 到第三方镜像）、G-1/G-3/G-4（marker 未登记、偶发建表 ERROR 真因未定、README 用例数的口径）、
 G-5/G-6（版本号三个手写位且无校验、静态门禁存量不被 CI 看）、
-G-7（SSE 流 v0.2.0 已补内存历史帧与 `Last-Event-ID`，每任务 256 帧 / 保留 60s，跨重启不补，别当无损投递）。
+G-7（SSE 流 v0.2.0 已补内存历史帧与 `Last-Event-ID`，每任务 256 帧 / 保留 60s，跨重启不补，别当无损投递；
+**方案 B**：终态任务只保证 `snapshot + done`、不保证 node 历史，完整轨迹走 `/trace`）。
 
 ---
 
