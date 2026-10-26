@@ -13,6 +13,7 @@ from typing import Any
 from langchain_core.messages import AIMessage, HumanMessage, SystemMessage
 
 from core.agent.base import BaseNode, NodeContext, render_prompt
+from core.agent.session import format_session_history
 from core.workflow.state import AgentState, StateUpdate, is_terminal, normalize_steps
 
 logger = logging.getLogger(__name__)
@@ -45,6 +46,9 @@ class PlannerNode(BaseNode):
         task = state.get("task", "")
         prompt = render_prompt("planner", self.config.planner_prompt_version, task=task)
         ask = PLANNER_ASK.format(task=task)
+        history_block = format_session_history(self.ctx.session_history)
+        if history_block:
+            ask = f"{history_block}\n\n{ask}"
         messages = [SystemMessage(content=prompt), HumanMessage(content=ask)]
 
         raw = self.llm.invoke_json(

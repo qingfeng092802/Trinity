@@ -5,15 +5,21 @@
 
 from __future__ import annotations
 
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 from pathlib import Path
 
+from core.agent.session import (
+    MAX_HISTORY_ANSWER_CHARS,
+    MAX_HISTORY_QUERY_CHARS,
+    SessionTurn,
+    format_session_history,
+)
 from storage.db import Database
 
 
 def _at(minutes: int) -> datetime:
     # 与 TaskRecord.created_at 同口径：UTC naive
-    return datetime(2026, 1, 1, 0, 0, 0, tzinfo=timezone.utc).replace(tzinfo=None) + timedelta(
+    return datetime(2026, 1, 1, 0, 0, 0, tzinfo=UTC).replace(tzinfo=None) + timedelta(
         minutes=minutes
     )
 
@@ -102,3 +108,25 @@ def test_session_id_is_persisted_and_exported(tmp_path: Path) -> None:
     assert record is not None
     assert record.session_id == "session-1"
     assert record.as_dict()["session_id"] == "session-1"
+
+
+def test_format_session_history_clips_and_keeps_last_three() -> None:
+    turns = [
+        SessionTurn(query=f"q{index}-" + "x" * (MAX_HISTORY_QUERY_CHARS + 20),
+                    answer=f"a{index}-" + "y" * (MAX_HISTORY_ANSWER_CHARS + 20))
+        for index in range(4)
+    ]
+
+    text = format_session_history(turns)
+
+    assert "第 1 轮" in text and "第 3 轮" in text
+    assert "q0-" not in text, "只保留最近 3 轮，最早的 q0 应被丢弃"
+    assert "q1-" in text and "q3-" in text
+    assert text.count("…") >= 6, "query 与 answer 超长都要截断"
+    # 头部与每轮标签有固定开销，不能把上界卡成 3*(query+answer)
+    assert len(text) < 3 * (MAX_HISTORY_QUERY_CHARS + MAX_HISTORY_ANSWER_CHARS) + 500
+    assert "不要重复执行这些历史任务" in text
+
+
+def test_format_session_history_empty_is_empty() -> None:
+    assert format_session_history([]) == ""

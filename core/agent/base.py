@@ -31,6 +31,7 @@ from api.constants import (
     TASK_EVT_TOOL_CALL,
 )
 from config import PROJECT_ROOT, Settings, get_settings
+from core.agent.session import SessionTurn
 from core.events import AnswerStream, EventRecord, TaskEventSink, UsageSink
 from core.llm.adapter import LLMAdapter, Usage, get_adapter
 from core.workflow.state import (
@@ -180,6 +181,7 @@ class NodeContext:
             不流式。与 ``event_sink`` 同样是「可选出口」：没有它，节点逻辑
             一字不变，只是屏上没有逐段出现的文字。
         usage_sink: **用量增量**出口（SSE ``usage`` 帧）；None 同理。
+        session_history: 同一 session 最近几轮已完成问答；只给 planner 用。
     """
 
     llm: LLMAdapter
@@ -190,6 +192,8 @@ class NodeContext:
     event_sink: TaskEventSink | None = None
     answer_stream: AnswerStream | None = None
     usage_sink: UsageSink | None = None
+    #: 同一 session 最近几轮已完成问答（Session Memory v1）；只给 planner 用
+    session_history: tuple[SessionTurn, ...] = ()
 
     @classmethod
     def create(
@@ -203,6 +207,7 @@ class NodeContext:
         event_sink: TaskEventSink | None = None,
         answer_stream: AnswerStream | None = None,
         usage_sink: UsageSink | None = None,
+        session_history: tuple[SessionTurn, ...] = (),
     ) -> NodeContext:
         """按需注入，未传的部分取全局默认值。"""
         resolved_settings = settings or get_settings()
@@ -215,6 +220,7 @@ class NodeContext:
             event_sink=event_sink,
             answer_stream=answer_stream,
             usage_sink=usage_sink,
+            session_history=session_history,
         )
 
 

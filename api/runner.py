@@ -35,6 +35,7 @@ from api.constants import (
 from config import Settings, get_settings
 from core.agent.base import NodeContext
 from core.agent.delta import sanitize_surrogates, sanitize_surrogates_deep
+from core.agent.session import SESSION_HISTORY_TURNS, SessionTurn
 from core.events import DatabaseEventSink, TaskEventSink, get_task_streams
 from core.llm.adapter import LLMAdapter, resolve_price
 from core.llm.pricing import OFF_PEAK_MULTIPLIER, price_multiplier
@@ -156,6 +157,26 @@ def build_runner(
     #: 装配发生在这条栈里 ⇒ 这里读到的必然是本任务那一组出口。
     streams = get_task_streams()
     adapter = llm if llm is not None else LLMAdapter(settings=settings)
+    session_history: tuple[SessionTurn, ...] = ()
+    session_id = getattr(item, "session_id", None)
+    if session_id and database is not None:
+        try:
+            rows = database.list_session_history(
+                session_id,
+                exclude_task_id=item.task_id,
+                limit=SESSION_HISTORY_TURNS,
+            )
+        except Exception as exc:  # 历史是辅助上下文：读失败降级为无历史，不阻断任务
+            logger.warning(
+                "读取会话历史失败 task_id=%s session_id=%s：%s",
+                item.task_id,
+                session_id,
+                exc,
+            )
+        else:
+            session_history = tuple(
+                SessionTurn(query=row.task, answer=row.final_answer) for row in rows
+            )
     ctx = NodeContext.create(
         settings=settings,
         config=config,
@@ -165,6 +186,7 @@ def build_runner(
         event_sink=event_sink,
         answer_stream=streams.answer if streams is not None else None,
         usage_sink=streams.usage if streams is not None else None,
+        session_history=session_history,
     )
     return WorkflowRunner(ctx)
 
