@@ -54,8 +54,9 @@ def test_stream_full_sequence(api_env: TestClient) -> None:
 
     任务文本故意带「慢」：Mock 通道每次调用前停 0.6s，保证建流发生在任务**运行中**。
     若用瞬时任务，它可能在客户端订阅前就已终态，而终态任务走的是
-    「snapshot + 终态补帧」快路径（契约见 ``known_residuals`` G-7），不会重放整条历史 ——
-    这时本用例量到的就不是流式序列，而是一条与 G-7 无关的时序竞态。
+    「snapshot + 终态补帧」快路径：**只保证 `snapshot + done`，不保证 node 历史**
+    （G-7 方案 B，完整历史走 `/trace`）。这时本用例量到的就不是流式序列，
+    而是一条与 G-7 无关的时序竞态。
     """
     body = _submit(api_env, "慢任务：从头订阅的流式观察任务")
     events = _collect_stream(api_env, body["task_id"])
@@ -101,6 +102,29 @@ def test_stream_terminal_task_closes_immediately(api_env: TestClient) -> None:
     names = [name for name, _data in events]
     assert names == ["snapshot", "done"]
     assert elapsed < 3.0, f"终态任务的流应在 1s 内关闭，实际 {elapsed:.2f}s"
+
+
+def test_terminal_before_subscribe_returns_snapshot_and_done_only(
+    api_env: TestClient,
+) -> None:
+    """G-7 方案 B 契约：任务先终态、再订阅，只保证 `snapshot + done`，不回放 node 历史。
+
+    本用例完全确定：先 ``poll_terminal`` 把任务落到 done，再建流；不存在
+    「订阅时任务还在跑」的时序窗口。历史帧补发只覆盖运行中的任务；要回放
+    完整的节点轨迹请走 ``/trace``。
+    """
+    body = _submit(api_env, "终态后订阅的确定性任务")
+    final = poll_terminal(api_env, body["task_id"])
+    assert final["status"] == "done"
+
+    events = _collect_stream(api_env, body["task_id"])
+
+    names = [name for name, _data in events]
+    assert names == ["snapshot", "done"], f"终态任务只应发两帧，实际 {names}"
+    assert not [data for name, data in events if name == "node"], "终态快路径不回放 node 历史"
+    assert events[-1][1]["status"] == "done"
+    assert events[-1][1]["final_answer"].strip() != ""
+    assert "cost" in events[-1][1] and "duration_ms" in events[-1][1]
 
 
 def test_stream_heartbeat_while_node_in_progress(api_env: TestClient) -> None:
