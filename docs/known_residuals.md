@@ -360,7 +360,7 @@ python -m pytest tests/integration -o addopts= -q --collect-only | tail -1 # 243
 **复算命令 + 当前读数 + "截至 <日期>"**，且三样与改动它的那一笔 commit 同签。
 **已按此落**：README「测试」一节给的是命令 + 读数 + 日期，30 秒摘要那行改成引用它而不是重抄一份数。
 
-### G-5 版本号有四个手写位（P2，**未关闭**）
+### G-5 版本号有四个手写位（P2，**已关闭 2026-10-26**）
 
 **现象**：`pyproject.toml` 的 `version`、`api/__init__.py` 的 `__version__`、
 `core/__init__.py` 的 `__version__` 与 `web-react/package.json` 的 `version`
@@ -380,7 +380,7 @@ python -m pytest tests/integration -o addopts= -q --collect-only | tail -1 # 243
 `__version__`（旧读数漏了它）。**2026-10-26 补充**：`web-react/package.json` 也是手写位，
 合计 **4 个**；`web-react/package-lock.json` 的根级与 `packages[""]` 是生成镜像。
 
-**关闭申报（2026-10-26，待复核，未勾关闭）**
+**关闭申报（2026-10-26，复核者确认）**
 
 - **结论**：采用关闭条件 ② 的扩展版：**四个手写位 + lock 镜像**。
 - **改动**：新增 `tests/unit/test_version_consistency.py`（3 条）；`web-react/package.json`
@@ -389,7 +389,7 @@ python -m pytest tests/integration -o addopts= -q --collect-only | tail -1 # 243
   → **3 passed**（0.04 s）；`pytest tests/integration/test_api_health.py -o addopts= -q`
   → **7 passed**（8.08 s）；`npm run typecheck` → **0 error**；全量
   `pytest tests -o addopts= -q` → **1,095 passed**（87.82 s，辅助）。
-- **复核**：待复核者确认；标题仍为“未关闭”，不自行勾检。
+- **复核**：复核者确认（2026-10-26）。
 
 ---
 
@@ -610,5 +610,5 @@ Mock 造两条 `llm_call` 的节点），让 T1 先红一次；② 再二选一�
 上传与沙箱都没有第二道资源闸（A-4/A-5）、控制台比旧版少了看板/服务端分页/token 输入
 （B-1…B-3；B-4 检索测试已在 v0.2.0 补上）、评测里的 p 值与 nDCG 表都是历史口径且头号结论本机不可复跑（C-1…C-3）、
 可观测性只做到服务端一半（D-1…D-5）、依赖无 lock（E-1）、语料许可没进 LICENSE（F-1）、
-门禁对测试代码是半盲区、版本号有四个手写位且已有一致性护栏（G-5 待复核）、CI 只管测试不管 ruff/mypy/tsc（G-1/G-2/G-5/G-6）、
+门禁对测试代码是半盲区、版本号有四个手写位且已有一致性护栏（G-5 已关闭）、CI 只管测试不管 ruff/mypy/tsc（G-1/G-2/G-5/G-6）、
 G-8 登记全量 pytest 偶发 setup ERROR；H-1/H-2/G-7/B-4 已关闭（复核者确认，2026-10-26）。
