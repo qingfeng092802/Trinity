@@ -65,14 +65,16 @@ RunnerFactory = Callable[["QueueItem"], WorkflowRunner]
 SAFE_TOOL_SUBSET: tuple[str, ...] = (
     "calculator",
     "knowledge_search",
+    "sql_query",
 )
 
 #: 全部内置工具名（``use_tools`` 为 ``None`` / ``True`` 时装配）。
-#: 与 :data:`core.tools.builtin.BUILTIN_REGISTRARS` 收敛后的 3 个工具一致。
+#: 与 :data:`core.tools.builtin.BUILTIN_REGISTRARS` 收敛后的 4 个工具一致。
 ALL_TOOL_NAMES: tuple[str, ...] = (
     "calculator",
     "knowledge_search",
     "code_exec",
+    "sql_query",
 )
 
 
@@ -135,9 +137,9 @@ def build_runner(
     tool_invoker: ToolRegistry | None = None
     tool_names = resolve_tool_names(item)
     if tool_names:
-        # 每任务一份注册表：默认注册的那 3 个工具（``BUILTIN_REGISTRARS``：
-        # calculator / knowledge_search / code_exec）都是无状态函数（knowledge_search 的
-        # 服务是进程内单例，经模块级注入共享），重建成本可忽略，
+        # 每任务一份注册表：默认注册的 4 个工具（``BUILTIN_REGISTRARS``：
+        # calculator / knowledge_search / code_exec / sql_query）都是无状态函数
+        # （knowledge_search 的服务是进程内单例，经模块级注入共享），重建成本可忽略，
         # 换来的是「不共享可变对象」这一确定性。
         registry = ToolRegistry(settings=settings, enable_hitl=settings.enable_hitl)
         load_builtin_tools(registry)

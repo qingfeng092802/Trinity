@@ -65,7 +65,7 @@
 | 能力 | 说明 |
 |------|------|
 | **三角色 Agent 编排** | `Planner` 拆解任务与计划 → `Executor` 按步执行（可调用工具）→ `Reviewer` 打分复核、不达标则打回重做。核心位于 `core/agent/`。 |
-| **工具系统** | 内置 `calculator` / `knowledge_search` / `code_exec` 三个默认工具（唯一来源 `core/tools/builtin/`）。支持超时、重试、人工确认（HITL，**默认 fail-closed**）。 |
+| **工具系统** | 内置 `calculator` / `knowledge_search` / `code_exec` / `sql_query` 四个默认工具（唯一来源 `core/tools/builtin/`）。`sql_query` 对固定 demo 库做只读 Text-to-SQL 问数。支持超时、重试、人工确认（HITL，**默认 fail-closed**）。 |
 | **本地 RAG 知识库** | 上传 **Markdown / PDF / TXT** 三种格式（2026-09-21 那次收敛把 docx / html 摘了：多背一个 `python-docx` 与一台标签状态机，换来的样本量不值——`rag/parsers.py` 顶部记着决策）→ 自动切分 → 索引 → 检索。唯一来源是 `api.constants.DOC_SUPPORTED_FORMATS`，界面、422 文案与判定都读它，复算：`python -c "from rag.service import supported_formats; print(supported_formats())"` ⇒ `['md', 'pdf', 'txt']`。默认 **纯 BM25**（零 API 成本、本地运行）；BM25 + 向量混合检索为可选项。检索结果带引用与归因。 |
 | **REST API** | 异步任务提交与状态查询、SSE 节点级增量流、单工具调用、健康/配置/统计/评测/知识库等路由，基于 FastAPI。 |
 | **成本归因** | 按角色聚合 LLM token 与费用，支持峰/谷计费时段（北京时间工作日 09–12、14–18 为高峰 ×1.0，其余 ×0.5）。 |
@@ -96,14 +96,18 @@
 
 **工具沙箱**
 
-- **默认注册 3 个**工具：`calculator`（确定性计算）/ `knowledge_search`（RAG 检索 + 引用溯源）/
-  `code_exec`（受限子进程沙箱——只有墙钟超时与环境变量白名单，**没有** CPU / 内存 / 输出字节的资源上限，见[已知边界](#已知边界) A-5）。
+- **默认注册 4 个**工具：`calculator`（确定性计算）/ `knowledge_search`（RAG 检索 + 引用溯源）/
+  `code_exec`（受限子进程沙箱——只有墙钟超时与环境变量白名单，**没有** CPU / 内存 / 输出字节的资源上限，见[已知边界](#已知边界) A-5）/
+  `sql_query`（固定 demo 库的只读 Text-to-SQL 问数；库由 `scripts/seed_demo_sql.py` 生成）；
   唯一来源是 `core/tools/builtin/__init__.py::BUILTIN_REGISTRARS`。
+- `sql_query` 的只读边界是四层：SQLite URI `mode=ro`、authorizer（只放行 SELECT /
+  白名单表 / 白名单函数）、`SELECT`/`WITH` 前置检查（禁多语句与写关键字）、连接级
+  `PRAGMA query_only=ON`。**不接受路径参数**；这不是 AST 分析。
 - `file_io` / `web_search` / `extract` 的**源码留在仓库里但刻意不注册**（`RETIRED_BUILTIN_REGISTRARS`）：
   直接删文件会连带走覆盖它们的回归用例，收敛靠"不注册"实现 ⇒ `GET /tools` 与 Agent 提示词里只有
-  3 个工具，`POST /tools/{name}/invoke` 调用退役的那三个回 **404**，响应里带上当前可用清单。
+  4 个工具，`POST /tools/{name}/invoke` 调用退役的那三个回 **404**，响应里带上当前可用清单。
 - 复算：`python -c "from core.tools.builtin import BUILTIN_REGISTRARS as B, RETIRED_BUILTIN_REGISTRARS as R; print(len(B), [f.__module__.split('.')[-1] for f in B]); print(len(R), [f.__module__.split('.')[-1] for f in R])"`
-  ⇒ `3 ['calculator', 'knowledge_search', 'code_exec']` / `3 ['file_io', 'web_search', 'extract']`（2026-10-07）。
+  ⇒ `4 ['calculator', 'knowledge_search', 'code_exec', 'sql_query']` / `3 ['file_io', 'web_search', 'extract']`（2026-10-25）。
 
 **前端**
 
@@ -355,6 +359,7 @@ npm run dev              # http://127.0.0.1:5173，/api 与 /sse 代理到后端
 | `run_eval.py` | YAML 任务集回归（与基线快照出报告） |
 | `run_ablation.py` | 检索消融实验（严格单变量） |
 | `build_corpus_a.py` | 语料落盘与审计 |
+| `seed_demo_sql.py` | 生成 Text-to-SQL 演示库 `data/demo_sql/demo.db`（`sql_query` 的唯一数据源；`--force` 覆盖重建） |
 | `probe_bge_weights.py` | 本机 bge 权重探测（只探测不下载） |
 
 ### 知识库快速验证
@@ -375,6 +380,37 @@ JSON
 > 请求体是 JSON，不是 URL query。这里用 `--data-binary @-` 让 shell 直接传 UTF-8
 > 字节：Windows 控制台的 `-d '{"query":"中文"}'` 可能按 GBK 发出，后端会报
 > “error parsing the body”，看起来像接口坏了。也可以把 query 写成 JSON `\uXXXX` 转义。
+
+### 智能问数快速验证（`sql_query`）
+
+演示库是虚构公司「云启智能」的部门 / 员工 / 差旅标准 / 报销单，**固定可复现**，
+不入库（`data/*` 与 `*.db` 都在 `.gitignore`）。
+
+```bash
+# 0) 端口同上
+BASE=http://127.0.0.1:8001
+# 1) 生成演示库（已存在时加 --force 重建）
+python scripts/seed_demo_sql.py
+# 2) 直接调只读查询工具
+curl -sS -X POST "$BASE/tools/sql_query/invoke" \
+  -H "Content-Type: application/json" \
+  --data-binary @- <<'JSON'
+{"args":{"sql":"SELECT d.dept_name, ROUND(SUM(c.amount_cny), 2) AS total_cny FROM expense_claims c JOIN departments d ON d.dept_id = c.dept_id WHERE c.status = 'approved' AND c.category LIKE '差旅%' GROUP BY d.dept_id, d.dept_name ORDER BY total_cny DESC","limit":10}}
+JSON
+# 3) 交给 Agent（默认工具面已含 sql_query）
+curl -sS -X POST "$BASE/tasks" \
+  -H "Content-Type: application/json" \
+  --data-binary @- <<'JSON'
+{"task":"各部门差旅报销总额是多少？请调用 sql_query，按金额从高到低列出各部门，并说明统计口径（status='approved' 且 category LIKE '差旅%'）。"}
+JSON
+```
+
+预期（种子数据，`approved` 且 `category LIKE '差旅%'`）：销售部 **8970** / 研发部 **5790** /
+市场部 **5360** / 交付部 **3220** / 职能部 **2700** 元。`sql_query` 只读：写操作、DDL、
+`PRAGMA`、`ATTACH`、`sqlite_master` 都会被拒；失败会记为 `status=failed`，不会伪装成成功。
+
+> 口径要写进问题：只说「差旅报销总额」而不限定 `status`，模型可能把 `pending` / `rejected`
+> 也加进去（本机实测 28 条、28050 元）。上面的 26040 元对应 `approved` + `差旅%`。
 
 ---
 

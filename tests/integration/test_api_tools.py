@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import json
 from typing import Any
 
 import pytest
@@ -41,6 +42,63 @@ def test_tool_validation_failure_is_200_with_failed_status(api_env: TestClient) 
 def test_missing_args_key_defaults_to_empty(api_env: TestClient) -> None:
     response = api_env.post("/tools/calculator/invoke", json={})
     assert response.status_code == 200
+
+
+# --------------------------------------------------------------------------- #
+# sql_query（P1 智能问数，只读 demo 库）
+# --------------------------------------------------------------------------- #
+def _use_temp_sql_demo(tmp_path: Any, monkeypatch: pytest.MonkeyPatch) -> None:
+    """用种子脚本建临时 demo 库，并把工具指向它（不读仓库 data/）。"""
+    from scripts.seed_demo_sql import seed
+
+    monkeypatch.setenv("TRINITY_SQL_DEMO_DB", str(tmp_path / "demo.db"))
+    seed(tmp_path / "demo.db")
+
+
+def test_sql_query_success(api_env: TestClient, tmp_path: Any, monkeypatch: pytest.MonkeyPatch) -> None:
+    _use_temp_sql_demo(tmp_path, monkeypatch)
+    response = api_env.post(
+        "/tools/sql_query/invoke",
+        json={
+            "args": {
+                "sql": "SELECT dept_name FROM departments ORDER BY dept_id",
+                "limit": 2,
+            }
+        },
+    )
+    assert response.status_code == 200
+    body = response.json()
+    assert body["status"] == "success", body["result"]
+    payload = json.loads(body["result"])
+    assert payload["columns"] == ["dept_name"]
+    assert payload["row_count"] == 2
+    assert payload["truncated"] is True
+
+
+def test_sql_query_rejects_write(api_env: TestClient, tmp_path: Any, monkeypatch: pytest.MonkeyPatch) -> None:
+    """写操作必须编码成 failed（raise），不能被当成成功结果。"""
+    _use_temp_sql_demo(tmp_path, monkeypatch)
+    response = api_env.post(
+        "/tools/sql_query/invoke",
+        json={"args": {"sql": "DELETE FROM departments"}},
+    )
+    body = response.json()
+    assert body["status"] == "failed"
+    assert "只允许 SELECT / WITH" in body["result"]
+
+
+def test_sql_query_missing_demo_db_is_failed(
+    api_env: TestClient, tmp_path: Any, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """库缺失：注册成功，调用是 failed 且提示种子命令（不自动建库）。"""
+    monkeypatch.setenv("TRINITY_SQL_DEMO_DB", str(tmp_path / "missing.db"))
+    response = api_env.post(
+        "/tools/sql_query/invoke",
+        json={"args": {"sql": "SELECT 1"}},
+    )
+    body = response.json()
+    assert body["status"] == "failed"
+    assert "seed_demo_sql" in body["result"]
 
 
 # --------------------------------------------------------------------------- #
@@ -156,6 +214,7 @@ _EXPECTED_TOOL_NAMES = [
     "calculator",
     "code_exec",
     "knowledge_search",
+    "sql_query",
 ]
 
 #: 每个列表项必须齐全的字段（**刻意不含 func**）。
@@ -172,14 +231,14 @@ def test_list_tools_returns_200(api_env: TestClient) -> None:
 
 
 def test_list_tools_total_and_count(api_env: TestClient) -> None:
-    """total 与 items 同源：均为 3（工具面已收敛）。"""
+    """total 与 items 同源：均为 4（v0.2.0 新增只读 sql_query）。"""
     body = api_env.get("/tools").json()
-    assert body["total"] == 3
-    assert len(body["items"]) == 3
+    assert body["total"] == 4
+    assert len(body["items"]) == 4
 
 
 def test_list_tools_names_exactly_and_sorted(api_env: TestClient) -> None:
-    """工具名恰好是这 3 个，且为字母序（registry.specs() 的 sorted 保证）。"""
+    """工具名恰好是这 4 个，且为字母序（registry.specs() 的 sorted 保证）。"""
     names = [item["name"] for item in api_env.get("/tools").json()["items"]]
     assert names == _EXPECTED_TOOL_NAMES
 
@@ -204,7 +263,7 @@ def test_list_tools_item_fields_complete(api_env: TestClient) -> None:
 
 
 def test_list_tools_danger_levels(api_env: TestClient) -> None:
-    """danger_level 正确：code_exec 为 high，其余 2 个为 low。"""
+    """danger_level 正确：code_exec 为 high，其余 3 个为 low。"""
     items = api_env.get("/tools").json()["items"]
     by_name = {item["name"]: item["danger_level"] for item in items}
     for name in _EXPECTED_TOOL_NAMES:

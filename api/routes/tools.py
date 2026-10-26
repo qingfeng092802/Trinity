@@ -93,8 +93,8 @@ def invoke_tool(
     """调用一个已注册的内置工具。
 
     Args:
-        tool_name: 工具名。**默认注册表里只有三个**：``calculator`` / ``knowledge_search`` /
-            ``code_exec``（唯一来源 ``core.tools.builtin.BUILTIN_REGISTRARS``）。
+        tool_name: 工具名。**默认注册表里有四个**：``calculator`` / ``knowledge_search`` /
+            ``code_exec`` / ``sql_query``（唯一来源 ``core.tools.builtin.BUILTIN_REGISTRARS``）。
             ``file_io`` / ``web_search`` / ``extract`` 源码仍在仓库里但**已退役、不注册**，
             传它们会命中下面的 404，``detail.message`` 会带上当前可用清单。
         body: 入参对象。

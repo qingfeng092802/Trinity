@@ -42,11 +42,12 @@ from core.tools.validators import (
     validate_args,
 )
 
-#: 对外暴露的 3 个工具（字母序，``registry.names()`` 的 sorted 保证）
+#: 对外暴露的 4 个工具（字母序，``registry.names()`` 的 sorted 保证）
 BUILTIN_NAMES = [
     "calculator",
     "code_exec",
     "knowledge_search",
+    "sql_query",
 ]
 
 #: 收敛下线、但仍保留源码的 3 个工具（见 core.tools.builtin.RETIRED_BUILTIN_REGISTRARS）
@@ -209,8 +210,12 @@ class TestRegistry:
     def test_describe_lists_signature_and_danger(self, registry: ToolRegistry) -> None:
         text = registry.describe()
         assert "- calculator(expression: string)" in text
+        assert "- sql_query(sql: string, limit?: integer)" in text
         assert "code_exec" in text and "（高危，需人工确认）" in text
-        assert len(text.splitlines()) == len(BUILTIN_NAMES)
+        # sql_query 的描述里嵌了多行 DDL（模型要看到列名），但每个工具仍只占一条
+        # 以 "- " 开头的清单行；DDL 的 "-- 表名" 不算清单项。
+        tool_lines = [line for line in text.splitlines() if line.startswith("- ")]
+        assert len(tool_lines) == len(BUILTIN_NAMES)
 
     def test_duplicate_name_is_rejected(self, registry: ToolRegistry) -> None:
         with pytest.raises(ToolRegistrationError, match="工具名重复"):

@@ -61,6 +61,7 @@ class TestResolveToolNames:
         assert names == SAFE_TOOL_SUBSET
         assert "knowledge_search" in names, "用户要的是关掉高危工具，不是关掉知识库检索"
         assert "calculator" in names
+        assert "sql_query" in names, "只读固定 demo 库属于低风险子集"
         assert "code_exec" not in names, "高危工具必须排除"
         # file_io / web_search / extract 已随工具面收敛下线，不在安全子集内
         for retired in ("file_io", "web_search", "extract"):
@@ -74,9 +75,16 @@ class TestResolveToolNames:
     def test_enabled_tools_orders_by_builtin(self) -> None:
         """``enabled_tools`` 顺序归一为内置顺序（提示词展示稳定）。"""
         names = resolve_tool_names(
-            _item(enabled_tools=["knowledge_search", "calculator", "code_exec"])
+            _item(
+                enabled_tools=[
+                    "sql_query",
+                    "knowledge_search",
+                    "calculator",
+                    "code_exec",
+                ]
+            )
         )
-        assert names == ("calculator", "knowledge_search", "code_exec")
+        assert names == ("calculator", "knowledge_search", "code_exec", "sql_query")
 
     def test_unknown_names_filtered(self) -> None:
         """未知名被过滤（合法名保留），不抛。"""

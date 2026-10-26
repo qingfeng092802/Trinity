@@ -26,7 +26,7 @@ Difficulty = Literal["easy", "medium", "hard"]
 #: （与 :class:`ToolSpecView.danger_level` 同一纪律）。与
 #: ``core.tools.builtin.BUILTIN_REGISTRARS`` 的注册集保持一致。
 KNOWN_TOOL_NAMES: frozenset[str] = frozenset(
-    {"calculator", "knowledge_search", "code_exec"}
+    {"calculator", "knowledge_search", "code_exec", "sql_query"}
 )
 
 
@@ -121,15 +121,15 @@ class TaskSubmitRequest(BaseModel):
         default=None,
         description=(
             "工具装配开关（三态，向后兼容）：不传（null）= 全量装配（现状行为）；"
-            "true = 全量装配；false = **低风险安全子集**（calculator/knowledge_search，"
-            "排除高危 code_exec），不再等同「零工具」"
+            "true = 全量装配；false = **低风险安全子集**（calculator/knowledge_search/"
+            "sql_query，排除高危 code_exec），不再等同「零工具」"
         ),
     )
     enabled_tools: list[str] | None = Field(
         default=None,
         description=(
             "精确工具白名单（最高优先级，覆盖 use_tools）；元素须为内置工具名之一："
-            "calculator/knowledge_search/code_exec"
+            "calculator/knowledge_search/code_exec/sql_query"
         ),
     )
     max_iterations: int | None = Field(
