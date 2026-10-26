@@ -39,6 +39,7 @@ from api.constants import (
     DOC_PENDING,
     DOC_READY,
     STATUS_CANCELED,
+    STATUS_DONE,
     STATUS_FAILED,
     STATUS_QUEUED,
     STATUS_RUNNING,
@@ -50,6 +51,7 @@ from storage.migrations import (
     ensure_task_error_columns,
     ensure_task_event_cost_columns,
     ensure_task_events_table,
+    ensure_task_session_column,
 )
 from storage.models import (
     AgentRecord,
@@ -154,6 +156,8 @@ class Database:
         ensure_task_error_columns(self.db_path)
         ensure_task_events_table(self.db_path)
         ensure_task_event_cost_columns(self.db_path)
+        # Session Memory v1：必需列，迁移失败会抛 TaskSessionMigrationError 停止启动
+        ensure_task_session_column(self.db_path)
         self._seed_agents()
         logger.info("数据库就绪：%s", self.url)
 
@@ -237,6 +241,45 @@ class Database:
         """按 id 取任务。"""
         with self.session() as handle:
             return handle.get(TaskRecord, task_id)
+
+    def list_session_history(
+        self,
+        session_id: str,
+        *,
+        exclude_task_id: str,
+        limit: int = 3,
+    ) -> list[TaskRecord]:
+        """取同一 session 最近几轮**已完成且非空**的任务，按时间正序返回。
+
+        只认 ``status='done'`` 且 ``final_answer != ''``：失败 / 取消 / aborted
+        的答案不作为多轮上下文。先按 ``created_at`` 倒序取最近 ``limit`` 条，
+        再 reverse 成"从旧到新"交给 planner。
+
+        Args:
+            session_id: 会话 id（调用方保证非空）。
+            exclude_task_id: 当前任务 id，避免把自己算进历史。
+            limit: 最多取几轮；默认 3。
+
+        Returns:
+            从旧到新的任务行；没有历史时返回空列表。
+        """
+        if not session_id or limit <= 0:
+            return []
+        with self.session() as handle:
+            stmt = (
+                select(TaskRecord)
+                .where(
+                    TaskRecord.session_id == session_id,
+                    TaskRecord.task_id != exclude_task_id,
+                    TaskRecord.status == STATUS_DONE,
+                    TaskRecord.final_answer != "",
+                )
+                .order_by(TaskRecord.created_at.desc(), TaskRecord.task_id.desc())
+                .limit(limit)
+            )
+            rows = list(handle.scalars(stmt))
+        rows.reverse()
+        return rows
 
     # ------------------------------------------------- 状态迁移（CAS） --
     def mark_running(self, task_id: str) -> bool:
