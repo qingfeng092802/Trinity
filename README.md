@@ -3,7 +3,7 @@
 [![Python](https://img.shields.io/badge/python-3.12+-blue.svg)](https://www.python.org/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 [![CI](https://github.com/qingfeng092802/Trinity/actions/workflows/ci.yml/badge.svg)](https://github.com/qingfeng092802/Trinity/actions/workflows/ci.yml)
-[![Version](https://img.shields.io/badge/version-0.2.0-blue)](#版本与发布)
+[![Version](https://img.shields.io/badge/version-0.3.0-blue)](#版本与发布)
 
 **Trinity** 是一个开源的多 Agent 协作编排平台，面向「复杂问题分解 → 工具调用 → 结果复核 → 可解释交付」这一类工作负载。它以 **LangGraph 三角色编排（Planner → Executor → Reviewer）** 为内核，向上提供 **FastAPI REST API** 与 **React 控制台**，向下集成一套**零 API 成本的本地 RAG 知识库**与一套**可复算的检索/评测/消融框架**。
 
@@ -31,7 +31,7 @@
 - **三角色不是摆设，是被完整执行的**：下图那次真实任务（“1024 路摄像头整机功耗怎么估算”）——Planner 拆 3 步 → Executor 检索命中 4 个 chunk（最高相似度 **0.83**）并用 `code_exec` 算出 **15 230.75 W** → Reviewer 首评 **6 分打回**，要求补 IEEE 802.3af/802.3at 标准引用 → 补引后复评 **8 分通过**。全程 **9.23 s / 2,383 tokens**（入 1,918 / 出 465），每一步事件落库、可在[轨迹回放](#界面预览)逐节点重放。
 - **检索评测是可复算的**：1,000 篇中文语料（CMRC2018）+ 300 题任务集，检索侧 **API 成本 ¥0**（零 LLM 调用，复算入口是 `scripts/eval_retrieval.py`）。**刻意不做配对显著性检验**——样本量撑不起多族校正后的功效，McNemar / Wilcoxon / Holm–Bonferroni 那条链已于 2026-09-21 整条删除，今天只报 **Δ 与逐题判据**。最硬的一条结论：**精排是真收益**——nDCG@5 **0.9586 → 0.9952（Δ +3.66pp）**；同一语料上纯 BM25（0.9654）**不低于**混合检索（0.9586）。⚠️ 这两个 nDCG 绝对值属**旧度量口径**（向量度量纠正后只复跑了检索评测，nDCG 那张表没重跑），而精排臂在没装 `torch` 的机器上**不可复跑**——限定都写在[已知边界](#已知边界) C-2 / C-3，全表与口径见 [`docs/m3_ablation_report.md`](docs/m3_ablation_report.md)。
 - **成本归因到角色**：Planner / Executor / Reviewer 的 token 与费用分开记账，支持峰谷时段计费（北京时间工作日 09–12、14–18 为高峰 ×1.0，其余 ×0.5）。
-- **测试不花一分钱**：**1,095 条用例**（844 单元 + 251 集成；截至 2026-10-26，复算命令见[测试](#测试)）全部由 Mock LLM 驱动，**零真实 token 消耗**，CI 全量跑。
+- **测试不花一分钱**：**1,108 条用例**（854 单元 + 254 集成；截至 2026-10-26，复算命令见[测试](#测试)）全部由 Mock LLM 驱动，**零真实 token 消耗**，CI 全量跑。
 
 ![真实运行 · 任务与日志页：Planner 三步规划、RAG 命中 4 个 chunk（最高 0.83）、Reviewer 首评 6 打回补 IEEE 引用后复评 8 通过，全程 9.23s / 2,383 tokens](docs/screenshots/01-tasks-desktop-light.png)
 
@@ -425,17 +425,17 @@ pytest tests -q            # CI 跑的就是这一条
 - **用例数怎么自己复算**（别抄任何文档里的裸数字，包括下面这行读数）：
 
   ```bash
-  python -m pytest -o addopts= -q --collect-only | tail -1                       # 1095 tests collected
-  python -m pytest tests/unit -o addopts= -q --collect-only | tail -1            # 844 tests collected
-  python -m pytest tests/integration -o addopts= -q --collect-only | tail -1     # 251 tests collected
+  python -m pytest -o addopts= -q --collect-only | tail -1                       # 1108 tests collected
+  python -m pytest tests/unit -o addopts= -q --collect-only | tail -1            # 854 tests collected
+  python -m pytest tests/integration -o addopts= -q --collect-only | tail -1     # 254 tests collected
   ```
 
   `-o addopts=` 是必要的：`pyproject.toml` 的 `addopts = "-q"` 会和命令行那个 `-q` 叠成双层 quiet，
   而双层 quiet 下 `--collect-only` **不打印** "N tests collected" 那一行（实测读不出数）。
-- **当前读数**（2026-10-26 在本工作树实跑）：收集 **1,095** = 单元 **844** + 集成 **251**；
-  全量 **1,095 passed / 0 skipped / 0 failed / 0 error**，87.82 s。v0.2.0 新增了 H-2 / G-7 /
-  B-4 / `sql_query` / 版本一致性护栏的用例；`test_stream_full_sequence` 单测连跑 **20 次全绿**
-  （G-7 已关闭，辅助证据）。
+- **当前读数**（2026-10-26 在本工作树实跑）：收集 **1,108** = 单元 **854** + 集成 **254**；
+  全量 **1,108 passed / 0 skipped / 0 failed / 0 error**，97.75 s。v0.2.0/v0.3.0 新增了
+  H-2 / G-7 / B-4 / `sql_query` / 版本一致性护栏 / P2 会话记忆的用例；`test_stream_full_sequence`
+  单测连跑 **20 次全绿**（G-7 已关闭，辅助证据）。
   ⚠️ 2026-10-07 曾在全量跑中偶发 `test_stream_full_sequence` 失败（SSE 只收到 1 条 node 增量，
   断言要求 ≥2），根因是事件总线不补发历史帧。v0.2.0 已补**内存**历史帧与 `Last-Event-ID` 跳过；
   **方案 B 契约**：终态任务只保证 `snapshot + done`、不保证 node 历史，完整轨迹走 `/trace`
@@ -448,7 +448,7 @@ pytest tests -q            # CI 跑的就是这一条
   `tests/unit/test_rag_fusion_rerank.py` 一条，两边各自定义了同名 skipif `needs_torch_stack`
   （`grep -n "needs_torch_stack" tests/unit/test_rag_embedder.py tests/unit/test_rag_fusion_rerank.py`）。
   见[已知边界](#已知边界) C-3。
-  口径限定：上面的 **1,095 / 0 skipped** 是本机读数（装了 `torch`）；CI 无 `torch` 时固定 **4 skipped**。
+  口径限定：上面的 **1,108 / 0 skipped** 是本机读数（装了 `torch`）；CI 无 `torch` 时固定 **4 skipped**。
 - 全部用例由 **Mock LLM** 驱动，**零真实 token 消耗**；集成用例走 FastAPI `TestClient` 全路由、
   RAG 嵌入走 `MockEmbedder`、语料用仓库内 fixture ⇒ **离线可跑、不需要任何密钥**（CI 里没配 secret）。
 - 覆盖单元 + 集成，**不含真实 LLM 端到端**。真实链路请用 `python scripts/live_test_m1.py`
@@ -580,26 +580,28 @@ ffmpeg -y -i "<录出来的 .webm>" -filter_complex '[0:v]trim=start=1.2:end=3.6
 
 ## 版本与发布
 
-版本号现在是 **0.2.0**。
+版本号现在是 **0.3.0**。
 
 - **四个手写位**（今天相等，改版本必须四处同改，见[已知边界](#已知边界) G-5）：
-  `pyproject.toml:12` 的 `version = "0.2.0"`、`api/__init__.py:13` 的
-  `__version__ = "0.2.0"`、`core/__init__.py:3` 的 `__version__ = "0.2.0"`、
-  `web-react/package.json:4` 的 `version = "0.2.0"`。
+  `pyproject.toml:12` 的 `version = "0.3.0"`、`api/__init__.py:13` 的
+  `__version__ = "0.3.0"`、`core/__init__.py:3` 的 `__version__ = "0.3.0"`、
+  `web-react/package.json:4` 的 `version = "0.3.0"`。
   `api.__version__` 喂给 `FastAPI(version=...)`（`api/main.py:196-202`），所以运行时也有一个口径：
 
   ```bash
   curl -s "$BASE/openapi.json" | python -c "import json,sys; print(json.load(sys.stdin)['info']['version'])"
-  # 0.2.0（2026-10-25 实测；同一棵树里用 TestClient 读到的 info.title 是 "Trinity API"）
+  # 0.3.0（2026-10-26 实测；同一棵树里用 TestClient 读到的 info.title 是 "Trinity API"）
   ```
 
   ⚠️ `core.__version__` 目前没有消费者，但它仍是同一数值的副本；`tests/unit/test_version_consistency.py`
   断言这四个手写位（以及 `web-react/package-lock.json` 的根级/`packages[""]` 镜像）一致。
   ⚠️ `importlib.metadata.version("agent-platform")` 只有在 `pip install -e .` 之后才有值——
   未安装的**解释器**里它抛 `PackageNotFoundError`（本机实测），所以不能拿它当唯一真源。
-- **Git tag**：本树当前有 `v0.2.0`（远程公开发布版镜像，指向 `7475ec3`）与 `v0.2.0-agent1`（开发版，指向 `75e50d1`）。约定是
+- **Git tag**：本树当前有 `v0.2.0`（远程公开发布版镜像，指向 `7475ec3`）、
+  `v0.2.0-agent1`（指向 `75e50d1`）、`v0.2.0-agent2`（指向 `5b5929b`）、
+  `v0.2.0-agent3`（指向 `06e19e6`）与 `v0.3.0`（本次公开稳定版）。约定是
   `v<major>.<minor>.<patch>`；打 tag 与 push 需要单独确认，本文档不代为执行。
-- 前端 npm 包（`web-react/package.json`）的 `version` 已与平台同步为 `0.2.0`；
+- 前端 npm 包（`web-react/package.json`）的 `version` 已与平台同步为 `0.3.0`；
   `package-lock.json` 的根级与 `packages[""]` 也同步，均由一致性用例断言。
 - 现在**还没有** CHANGELOG.md，也**没有**语义化版本的兼容承诺：0.x 阶段 REST 字段与命令行
   脚本都可能破坏性变动。要追变化请以 commit 历史与仓库的 Releases 页为准。
