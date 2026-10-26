@@ -3,7 +3,7 @@
 [![Python](https://img.shields.io/badge/python-3.12+-blue.svg)](https://www.python.org/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 [![CI](https://github.com/qingfeng092802/Trinity/actions/workflows/ci.yml/badge.svg)](https://github.com/qingfeng092802/Trinity/actions/workflows/ci.yml)
-[![Version](https://img.shields.io/badge/version-0.1.0-blue)](#版本与发布)
+[![Version](https://img.shields.io/badge/version-0.2.0-blue)](#版本与发布)
 
 **Trinity** 是一个开源的多 Agent 协作编排平台，面向「复杂问题分解 → 工具调用 → 结果复核 → 可解释交付」这一类工作负载。它以 **LangGraph 三角色编排（Planner → Executor → Reviewer）** 为内核，向上提供 **FastAPI REST API** 与 **React 控制台**，向下集成一套**零 API 成本的本地 RAG 知识库**与一套**可复算的检索/评测/消融框架**。
 
@@ -16,9 +16,11 @@
 > 任务是 `deepseek-flash` 真跑的 —— `task-864552ce1e28`，墙钟 **41.6 s**、6 次调用、总花费 **¥0.0546**；
 > 知识库是播种进去的 3 篇示例文档（20 chunk / 6,205 token）。画面里三处读数请这样读：
 > 右上角「降级运行 127.0.0.1:8001」= **Redis 没起**时的预期降级态（不是报错）；
-> 轨迹页那块「总耗时 1m 10s」把节点 span 与单步耗时加了两遍，真实墙钟是 41.6 s（H-1）；
-> ¥0.0546 是**事件侧真值**，任务表里的 `tasks.cost` 只有 ¥0.0345（H-2，节点出口只记末次调用）。
-> 两条都已立案，判据与关闭条件见[已知边界](#已知边界)。复跑命令在[界面预览](#界面预览)末尾。
+> 轨迹页那块「总耗时 1m 10s」把节点 span 与单步耗时加了两遍，真实墙钟是 41.6 s（H-1；
+> v0.2.0 已改为只加 `node_end`，见[已知边界](#已知边界)）；
+> ¥0.0546 是**事件侧真值**，任务表里的 `tasks.cost` 只有 ¥0.0345（H-2，节点出口只记末次调用；
+> v0.2.0 已改为节点级累加并回填历史 done 任务，见[已知边界](#已知边界)）。
+> 两处的关闭申报均已提交，待复核确认。复跑命令在[界面预览](#界面预览)末尾。
 
 ---
 
@@ -29,7 +31,7 @@
 - **三角色不是摆设，是被完整执行的**：下图那次真实任务（“1024 路摄像头整机功耗怎么估算”）——Planner 拆 3 步 → Executor 检索命中 4 个 chunk（最高相似度 **0.83**）并用 `code_exec` 算出 **15 230.75 W** → Reviewer 首评 **6 分打回**，要求补 IEEE 802.3af/802.3at 标准引用 → 补引后复评 **8 分通过**。全程 **9.23 s / 2,383 tokens**（入 1,918 / 出 465），每一步事件落库、可在[轨迹回放](#界面预览)逐节点重放。
 - **检索评测是可复算的**：1,000 篇中文语料（CMRC2018）+ 300 题任务集，检索侧 **API 成本 ¥0**（零 LLM 调用，复算入口是 `scripts/eval_retrieval.py`）。**刻意不做配对显著性检验**——样本量撑不起多族校正后的功效，McNemar / Wilcoxon / Holm–Bonferroni 那条链已于 2026-09-21 整条删除，今天只报 **Δ 与逐题判据**。最硬的一条结论：**精排是真收益**——nDCG@5 **0.9586 → 0.9952（Δ +3.66pp）**；同一语料上纯 BM25（0.9654）**不低于**混合检索（0.9586）。⚠️ 这两个 nDCG 绝对值属**旧度量口径**（向量度量纠正后只复跑了检索评测，nDCG 那张表没重跑），而精排臂在没装 `torch` 的机器上**不可复跑**——限定都写在[已知边界](#已知边界) C-2 / C-3，全表与口径见 [`docs/m3_ablation_report.md`](docs/m3_ablation_report.md)。
 - **成本归因到角色**：Planner / Executor / Reviewer 的 token 与费用分开记账，支持峰谷时段计费（北京时间工作日 09–12、14–18 为高峰 ×1.0，其余 ×0.5）。
-- **测试不花一分钱**：**1,055 条用例**（812 单元 + 243 集成；截至 2026-10-07，复算命令见[测试](#测试)）全部由 Mock LLM 驱动，**零真实 token 消耗**，CI 全量跑。
+- **测试不花一分钱**：**1,091 条用例**（841 单元 + 250 集成；截至 2026-10-25，复算命令见[测试](#测试)）全部由 Mock LLM 驱动，**零真实 token 消耗**，CI 全量跑。
 
 ![真实运行 · 任务与日志页：Planner 三步规划、RAG 命中 4 个 chunk（最高 0.83）、Reviewer 首评 6 打回补 IEEE 引用后复评 8 通过，全程 9.23s / 2,383 tokens](docs/screenshots/01-tasks-desktop-light.png)
 
@@ -423,26 +425,26 @@ pytest tests -q            # CI 跑的就是这一条
 - **用例数怎么自己复算**（别抄任何文档里的裸数字，包括下面这行读数）：
 
   ```bash
-  python -m pytest -o addopts= -q --collect-only | tail -1                       # 1055 tests collected
-  python -m pytest tests/unit -o addopts= -q --collect-only | tail -1            # 812 tests collected
-  python -m pytest tests/integration -o addopts= -q --collect-only | tail -1     # 243 tests collected
+  python -m pytest -o addopts= -q --collect-only | tail -1                       # 1091 tests collected
+  python -m pytest tests/unit -o addopts= -q --collect-only | tail -1            # 841 tests collected
+  python -m pytest tests/integration -o addopts= -q --collect-only | tail -1     # 250 tests collected
   ```
 
   `-o addopts=` 是必要的：`pyproject.toml` 的 `addopts = "-q"` 会和命令行那个 `-q` 叠成双层 quiet，
   而双层 quiet 下 `--collect-only` **不打印** "N tests collected" 那一行（实测读不出数）。
-- **当前读数**（2026-10-07 在本工作树实跑）：收集 **1,055** = 单元 **812** + 集成 **243**；
-  全量 **1,051 passed / 4 skipped / 0 failed / 0 error**，58.3 s。
-  ⚠️ 但**终态树连跑三次全量，其中一次是 1,050 passed + 1 failed**：挂的是
-  `tests/integration/test_api_stream.py::test_stream_full_sequence`（SSE 只收到 1 条 node 增量，
-  断言要求 ≥2），而**单跑该文件 11/11 绿**。根因不是用例写坏了：事件总线的 `subscribe()`
-  不补发历史帧，"从头订阅"这条契约在代码层并不成立 ⇒ 这条流别当可靠投递用，
-  界面是靠任务进终态后补拉 `/trace` 兜住的。完整正文、复现办法与两种收口方案见
-  [`docs/known_residuals.md`](docs/known_residuals.md) 的 **G-7**。
-- 那 **4 条 skip 不是失败，也不是"测试变少了"**：可选重排/嵌入臂要 `torch` + `transformers`（≈2 GB）
-  与本地权重，缺依赖就整条跳过。判据（读数来自上面那次全量的 junit）：
-  `tests/unit/test_rag_embedder.py` 三条 + `tests/unit/test_rag_fusion_rerank.py` 一条，
-  两边各自定义了同名 skipif `needs_torch_stack`（`grep -n "needs_torch_stack" tests/unit/test_rag_embedder.py tests/unit/test_rag_fusion_rerank.py`）。
-  见[已知边界](#已知边界) C-3。要凑齐 1,055 全跑：`pip install -e ".[torch]"` 并把权重取到本地。
+- **当前读数**（2026-10-25 在本工作树实跑）：收集 **1,091** = 单元 **841** + 集成 **250**；
+  全量 **1,091 passed / 0 skipped / 0 failed / 0 error**，84.0 s。v0.2.0 新增了 H-2 / G-7 /
+  B-4 / `sql_query` 的用例；`test_stream_full_sequence` 单测连跑 **20 次全绿**（G-7 关闭申报）。
+  ⚠️ 2026-10-07 曾在全量跑中偶发 `test_stream_full_sequence` 失败（SSE 只收到 1 条 node 增量，
+  断言要求 ≥2），根因是事件总线不补发历史帧。v0.2.0 已补**内存**历史帧与 `Last-Event-ID` 跳过；
+  历史每任务最多 256 帧、最后发布后保留 60s，**跨进程重启不补** ⇒ 仍别把这条流当**无损**投递，
+  终态对账仍以 `/trace` 为准。完整申报见 [`docs/known_residuals.md`](docs/known_residuals.md) 的 **G-7**。
+- 那 **4 条可选 skip 不是失败**：可选重排/嵌入臂要 `torch` + `transformers`（≈2 GB）
+  与本地权重，缺依赖就整条跳过。本机 `.venv` 已装 `torch 2.14.0+cpu` / `transformers 5.17.0`，
+  所以这次全量是 **0 skip**；判据：`tests/unit/test_rag_embedder.py` 三条 +
+  `tests/unit/test_rag_fusion_rerank.py` 一条，两边各自定义了同名 skipif `needs_torch_stack`
+  （`grep -n "needs_torch_stack" tests/unit/test_rag_embedder.py tests/unit/test_rag_fusion_rerank.py`）。
+  见[已知边界](#已知边界) C-3。
 - 全部用例由 **Mock LLM** 驱动，**零真实 token 消耗**；集成用例走 FastAPI `TestClient` 全路由、
   RAG 嵌入走 `MockEmbedder`、语料用仓库内 fixture ⇒ **离线可跑、不需要任何密钥**（CI 里没配 secret）。
 - 覆盖单元 + 集成，**不含真实 LLM 端到端**。真实链路请用 `python scripts/live_test_m1.py`
@@ -475,10 +477,10 @@ pytest tests -q            # CI 跑的就是这一条
 ## 已知边界
 
 这个项目**刻意留下了一些没修的东西**。它们不是遗漏，是排期与取舍的结果——但读者有权知道，
-所以完整清单（每条带「怎么自己复算」的判据与「什么时候才值得动」的关闭条件；截至 2026-10-07
-共 **33** 条，复算：`grep -c '^### ' docs/known_residuals.md`）放在
+所以完整清单（每条带「怎么自己复算」的判据与「什么时候才值得动」的关闭条件；截至 2026-10-25
+共 **34** 条，复算：`grep -c '^### ' docs/known_residuals.md`）放在
 [`docs/known_residuals.md`](docs/known_residuals.md)。下表是最硬的 14 条，
-**全部于 2026-10-07 在本工作树实测过**（行号会漂，判据以命令为准，别信这里的行号本身）。
+**全部于 2026-10-07 在本工作树实测过；v0.2.0 的修复读数另标 2026-10-25**（行号会漂，判据以命令为准，别信这里的行号本身）。
 下表 curl 里的 `$BASE` 就是[快速开始](#快速开始)「先定端口」那一行：本地 **8001**、Docker **8000**。
 
 | 编号 | 边界 | 怎么自己验 |
@@ -491,12 +493,12 @@ pytest tests -q            # CI 跑的就是这一条
 | **B-4** | 知识库页**没有检索测试**（修复前；上传、解析/索引状态机进度、文档与 chunk 读数都在，`POST /knowledge/search` 只在 API 侧）。**v0.2.0 已加「试检索」面板（待复核）** | 修复前 `grep -rn "knowledge/search" web-react/src` ⇒ 0；v0.2.0 起同一命令有调用，页面可直接检索 |
 | **C-1** | 今天的代码**不产 p 值**：McNemar / Wilcoxon / Holm–Bonferroni 已于 2026-09-21 整条删除（样本量给不出可信 p，只报 Δ 与逐题判据）。**仓库里出现的 p 值全部是历史留档**，包括本文的 30 秒摘要 | `grep -n "significance_removed" evaluation/ablation.py` |
 | **C-2** | 消融矩阵与 nDCG@5 那张 15 臂表仍是**旧度量口径**（向量度量纠正后只复跑了检索评测，nDCG 没重跑）⇒ 跨表比数字会错 | 对比 `python scripts/eval_retrieval.py`（新口径、零 LLM）与 `docs/m3_design.md` 的 15 臂表 |
-| **C-3** | 报告头号结论（精排 **+3.66pp**）在作者本机**不可复跑**：精排臂要 `torch` / `transformers`（≈2 GB），没装就固定 **4 条 skip**（是缺依赖，不是失败，也不是"测试变少了"） | `python -c "import torch"` 报错；`pytest -q` 尾行的 `4 skipped` |
+| **C-3** | 报告头号结论（精排 **+3.66pp**）在作者本机**不可复跑**：精排臂要 `torch` / `transformers`（≈2 GB），没装就固定 **4 条 skip**（是缺依赖，不是失败，也不是"测试变少了"）。本机 `.venv` 已装 `torch 2.14.0+cpu`，当前 **0 skip** | 缺依赖环境：`python -c "import torch"` 报错且 `pytest -q` 尾行 `4 skipped`；本机：`pytest -q` 尾行 `0 skipped` |
 | **E-1** | 依赖全是 `>=` 下限、**没有 lock** ⇒ 新机器解析出的组合与作者测过的**不是同一个**。实测本机 fastapi 0.135.1 / langchain-core 1.2.19 / pydantic 2.12.5，其中 `langchain-core` 下限写 0.x 而实装 1.x，**跨了一个 major** | `ls *.lock` 为空；`python -m pip show langchain-core` |
 | **F-1** | 代码是 MIT，但随仓库提交的 **1,000 篇 CMRC2018 派生文档是 CC-BY-SA-4.0**，而仓里没有 `NOTICE` / `ATTRIBUTION` ⇒ 别人 fork 再分发时，ShareAlike 的义务在 LICENSE 里看不见 | `ls LICENSE NOTICE*` 只有 MIT 那份 |
 | **G-2** | `tests/` 不在 mypy 的配置目标里（ruff **会**查它）⇒ 测试代码里的类型错误不会在门禁里露头，用例照样能跑绿 | 看 `pyproject.toml` 的 `[tool.mypy].files`，没有 `tests` |
-| **H-1** | 轨迹页那块「总耗时」是墙钟的 **1.7–2.0 倍**：它对**每条事件**求和，而 `node_end` 已经把本节点的 `llm_call` 全包在里面 ⇒ 两层相加重复计。本文首屏那张 GIF 里那格 `1m 10s` 就是它（那条任务真实墙钟 41.6 s） | `curl -s "$BASE/tasks/<id>/trace?limit=500"`，分别对"全部事件"与"仅 `node_end`"求和：后者与 `tasks.duration_ms` **逐位相等**，前者是 1.69–2.00× |
-| **H-2** | `tasks.cost` 只记**每个节点最后一次** LLM 调用 ⇒ 多步任务少算 **37–39%**（Q6-01 只补了 `llm_call` 事件通道，节点出口那条 `TraceRecord` 仍取 `last_usage`，而落库加的是节点记录）。`/cost-breakdown` 自带的对账位在真实多步任务上就是 `false`；门禁那条 T1 喂的是"每节点各一次调用"的样本，结构上撞不到它 | `curl -s "$BASE/tasks/<id>/cost-breakdown"` 看 `reconcile.all_equal`（本树三条真实任务**全 false**，差 1.6e-2 元量级）；机制在 `core/agent/base.py` 的 `per_call_llm_events` 注释里写着 |
+| **H-1** | 轨迹页「总耗时」曾是墙钟的 **1.7–2.0 倍**：它对**每条事件**求和，而 `node_end` 已经把本节点的 `llm_call` 全包在里面 ⇒ 两层相加重复计。本文首屏那张 GIF 里那格 `1m 10s` 就是它（那条任务真实墙钟 41.6 s）。**v0.2.0 已改为只加未筛选的 `node_end`（待复核）** | 旧算法：对"全部事件"与"仅 `node_end`"分别求和，前者是 1.69–2.00×；v0.2.0：页面指标卡与 Σ `node_end` 一致，筛选不改变总耗时（`web-react/tools/uicheck/traceDuration.cjs`） |
+| **H-2** | `tasks.cost` 只记**每个节点最后一次** LLM 调用 ⇒ 多步任务少算 **37–39%**（Q6-01 只补了 `llm_call` 事件通道，节点出口那条 `TraceRecord` 仍取 `last_usage`，而落库加的是节点记录）。`/cost-breakdown` 自带的对账位在真实多步任务上就是 `false`；门禁那条 T1 喂的是"每节点各一次调用"的样本，结构上撞不到它。**v0.2.0 已改为节点级累加并回填历史 done 任务（待复核）** | `curl -s "$BASE/tasks/<id>/cost-breakdown"` 看 `reconcile.all_equal`；v0.2.0 后 done 任务全 true，唯一例外是取消任务 `task-1365c179c055`（`tasks.cost=0`，不在 H-2 判据内） |
 
 还有两句容易被读反的提醒：**配了 `healthcheck` 不等于会自愈**（D-5，Docker 不会因为容器 unhealthy
 而重启它）；**响应头里有 `X-Request-ID` 也不等于日志里 grep 得到它**（D-2，格式串里没这一列）。
@@ -506,8 +508,8 @@ C-4（judge 与被测系统同源、外部内容裸插值进 prompt）、C-5（�
 固有行为）、D-1/D-3/D-4（日志无轮转且与测试同文件、非成功终态全记 INFO、前端零上报通道）、
 E-2/E-3/E-4（Python 版本多套口径、heredoc 装依赖、embedding 权重来源由代码 `setdefault`
 到第三方镜像）、G-1/G-3/G-4（marker 未登记、偶发建表 ERROR 真因未定、README 用例数的口径）、
-G-5/G-6（版本号两个手写位且无校验、静态门禁存量不被 CI 看）、
-G-7（SSE 那条流名为"从头订阅"其实不补发历史帧——[测试](#测试)一节给了它的实跑频次与两种收口方案）。
+G-5/G-6（版本号三个手写位且无校验、静态门禁存量不被 CI 看）、
+G-7（SSE 流 v0.2.0 已补内存历史帧与 `Last-Event-ID`，每任务 256 帧 / 保留 60s，跨重启不补，别当无损投递）。
 
 ---
 
@@ -567,27 +569,33 @@ ffmpeg -y -i "<录出来的 .webm>" -filter_complex '[0:v]trim=start=1.2:end=3.6
 | 消融评测（M3） | `docs/m3_design.md` ｜ `docs/m3_ablation_report.md` |
 | 轨迹事件落库 | `docs/p1_trace_events_design.md` |
 | 评测台 | `docs/p2_eval_harness_design.md` |
-| **已知边界与残留清单**（33 条，带复算判据与关闭条件） | [`docs/known_residuals.md`](docs/known_residuals.md) ｜ 摘要见[已知边界](#已知边界) |
+| **已知边界与残留清单**（34 条，带复算判据与关闭条件） | [`docs/known_residuals.md`](docs/known_residuals.md) ｜ 摘要见[已知边界](#已知边界) |
 
 ---
 
 ## 版本与发布
 
-版本号现在只有一个：**0.1.0**。
+版本号现在是 **0.2.0**。
 
-- **两个手写位**（今天相等，改版本必须两处同改，见[已知边界](#已知边界) G-5）：
-  `pyproject.toml:12` 的 `version = "0.1.0"` 与 `api/__init__.py:13` 的 `__version__ = "0.1.0"`。
-  后者喂给 `FastAPI(version=...)`（`api/main.py:196-202`），所以运行时也有一个口径：
+- **三个手写位**（今天相等，改版本必须三处同改，见[已知边界](#已知边界) G-5）：
+  `pyproject.toml:12` 的 `version = "0.2.0"`、`api/__init__.py:13` 的
+  `__version__ = "0.2.0"`、`core/__init__.py:3` 的 `__version__ = "0.2.0"`。
+  `api.__version__` 喂给 `FastAPI(version=...)`（`api/main.py:196-202`），所以运行时也有一个口径：
 
   ```bash
   curl -s "$BASE/openapi.json" | python -c "import json,sys; print(json.load(sys.stdin)['info']['version'])"
-  # 0.1.0（2026-10-07 实测；同一棵树里用 TestClient 读到的 info.title 是 "Trinity API"）
+  # 0.2.0（2026-10-25 实测；同一棵树里用 TestClient 读到的 info.title 是 "Trinity API"）
   ```
 
+  ⚠️ `core.__version__` 目前没有消费者，但它仍是同一数值的副本；"三处相等"的一致性用例
+  还没补（G-5 的关闭条件 ②），所以靠发布检查而不是 CI 保证。
   ⚠️ `importlib.metadata.version("agent-platform")` 只有在 `pip install -e .` 之后才有值——
   未安装的**解释器**里它抛 `PackageNotFoundError`（本机实测），所以不能拿它当唯一真源。
-- **Git tag**：本树当前**没有任何 tag**（`git tag` 空，2026-10-07 实测）。约定是
-  `v<major>.<minor>.<patch>`，第一个 `v0.1.0` 应打在两个手写位都等于 `0.1.0` 的那一笔上。
+- **Git tag**：本树当前**没有任何 tag**（`git tag` 空，2026-10-25 实测）。约定是
+  `v<major>.<minor>.<patch>`，`v0.2.0` 应打在三个手写位都等于 `0.2.0` 的那一笔上；
+  打 tag 与 push 需要单独确认，本文档不代为执行。
+- 前端 npm 包（`web-react/package.json`）的 `version` 仍是 `0.1.0`：它是独立包，
+  不随平台版本号走。
 - 现在**还没有** CHANGELOG.md，也**没有**语义化版本的兼容承诺：0.x 阶段 REST 字段与命令行
   脚本都可能破坏性变动。要追变化请以 commit 历史与仓库的 Releases 页为准。
 

@@ -9,7 +9,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "agent-platform"
-version = "0.1.0"
+version = "0.2.0"
 description = "Trinity · 多 Agent 协作与 RAG 检索评测平台：Planner → Executor → Reviewer 三角色编排 + REST API + 控制台"
 requires-python = ">=3.12"
 dependencies = [

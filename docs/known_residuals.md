@@ -6,7 +6,7 @@
 
 四点交代：
 
-- **每条的判据都在本工作树实测过**（2026-10-07）。行号会随改动漂移，所以能用 grep / 命令复算的
+- **每条的判据都在本工作树实测过**（2026-10-07；v0.2.0 的关闭申报另有 2026-10-25 读数）。行号会随改动漂移，所以能用 grep / 命令复算的
   一律给命令，别信这里的行号本身。
 - **端口**：文中 curl 示例一律写 `:8000`（`config.py` 的 `api_port` 默认值）。如果你按 README 的
   本地链路起服务（`start.bat` 与 `uvicorn` 示例都是 **8001**，vite 代理也指 8001），
@@ -374,6 +374,10 @@ python -m pytest tests/integration -o addopts= -q --collect-only | tail -1 # 243
 `except PackageNotFoundError: __version__ = "0.0.0+unknown"` 并让 `pyproject` 保持唯一手写位；
 ②留两份但加一条用例断言两者相等（最便宜，且不改变"未安装也能跑"的现状）。
 
+**口径更正（2026-10-25，v0.2.0）**：手写位实际是 **3 个**——`core/__init__.py:3` 还有一份
+`__version__`（旧读数漏了它）。v0.2.0 发布时三处已同步为 `0.2.0`，且 `test_api_health.py`
+的版本断言同步更新；但"三处相等"的一致性用例**仍未补**（关闭条件 ② 未做），本条不勾关闭。
+
 ---
 
 ### G-6 静态门禁有存量，而 CI 完全不看它们（P2，**未关闭**）
@@ -432,17 +436,23 @@ grep -c "^\s*run:" .github/workflows/ci.yml   # 2（一条装依赖、一条跑�
     非法/负值按"没有游标"处理（宁可重放，不静默吞帧）。
   - `api/routes/health.py`：新增 `checks.sse`，输出 `subscriber_topics / subscribers / history_tasks /
     dropped_without_loop / dropped_loop_closed / dropped_queue_full` —— `_dropped_without_loop` 有了出口。
-  - 新增 `tests/unit/test_event_bus_replay.py`；`tests/integration/test_api_stream.py` 加重连用例；
-    `tests/integration/test_api_health.py` 加出口用例（真的制造一次未绑 loop 的发布，断言读数为 1）。
-- **证据（2026-10-25 本机，Python 3.13 venv）**：
+  - 新增 `tests/unit/test_event_bus_replay.py`；`tests/integration/test_api_stream.py` 加
+    **fresh-subscribe 补发**（预置 1..4+done，断言 `[1,2,3,4,5]`，连跑 20 次）与
+    **Last-Event-ID 重连跳过**用例；`tests/integration/test_api_health.py` 加出口用例
+    （真的制造一次未绑 loop 的发布，断言读数为 1）。
+- **证据（2026-10-25 本机，Python 3.14.6 venv）**：
   - `pytest tests/unit/test_event_bus_replay.py -o addopts= -q` → **5 passed**
     （先 publish 2 帧再 subscribe 的确定性用例连跑 20 次，均得到 `[1, 2]`）；
   - `pytest tests/integration/test_api_stream.py tests/integration/test_api_health.py -o addopts= -q`
-    → **20 passed**（含 `Last-Event-ID: 2` 时只回放 `[3,4,5]`、非法头不 500）；
-  - `test_stream_full_sequence` **连跑 20 次**：`pass=20 fail=0`。
-- **边界（不写成"无损"）**：
+    → **21 passed**（含 fresh-subscribe 全量回放、`Last-Event-ID: 2` 时只回放 `[3,4,5]`、
+    非法头不 500）；
+  - `test_stream_full_sequence` **连跑 20 次**：`pass=20 fail=0`；
+  - 全量 `pytest tests -o addopts= -q` → **1,091 passed / 0 skipped / 0 failed / 0 error**（84.0 s）。
+- **边界与用例口径（不写成"无损"）**：
   - 只补发**本进程内存里仍保留**的帧：每任务最多 256 帧、最后一次发布后 60s；进程重启不补发；
-  - 已终态任务仍走"首屏 snapshot + 终态补帧"快路径，不重放整条历史（既有契约不变）；
+  - 已终态任务仍走"首屏 snapshot + 终态补帧"快路径，**不重放整条历史**（既有契约不变）——
+    因此 `test_stream_full_sequence` 改用「慢任务」保证建流发生在运行中；补发语义由
+    预置历史的 fresh-subscribe / 重连两条确定性用例覆盖，不靠时序碰运气；
   - 同一任务的 `seq` 由唯一 worker 的 `seq_box` 发号、严格递增，故 `Last-Event-ID` 对该任务 URL 可用。
     原文"`id:` 跨连接不单调"应读作**跨任务**不可比；同一任务重连时它是单调的（口径更正）。
 - **复核**：待复核者确认。
@@ -494,6 +504,18 @@ curl -s "$BASE/tasks/<task_id>/trace?limit=500" | python -c "import sys,json;e=j
 "页面总耗时 == `tasks.duration_ms`"；筛选态的语义另定（"这一类节点合计多少"还是"占墙钟多少"），
 别沿用同一个标签。
 **为什么现在不动**：读数口径缺陷，不崩；而"对的那个说法"要连筛选态语义一起拍，归后端/前端账。
+
+**关闭申报（2026-10-25，待复核，未勾关闭）**
+
+- **结论**：已修复（页面总耗时只加**未筛选**的 `node_end`；筛选只影响计数与分布）。
+- **改动**：`web-react/src/pages/TraceReplayPage.tsx` 的 `stats` 改为对未筛选 `events` 里
+  `event_type === 'node_end'` 的 `latency_ms` 求和；指标卡读该值；「平均 / 步」的分母改为
+  `node_end` 条数；没有 `node_end` 的旧任务显示 `—`，不回退到全事件求和。未新增 `/tasks/{id}` 请求。
+- **证据（2026-10-25 本机，Playwright 真实 DOM）**：`web-react/tools/uicheck/traceDuration.cjs`
+  对 `task-804d76037a07` 读到指标卡 **1m 18s（78,000 ms）**，Σ `node_end` = **78,407 ms**，
+  旧「Σ 全部事件」= **144,312 ms**；「只看失败」筛选后总耗时不变；路由拦截剔除 `node_end`
+  的对照下显示 `—`。`npm run typecheck` 与 `npm run build` 均通过（2026-10-25 复跑，build 23.85 s）。
+- **复核**：待复核者确认。
 
 ### H-2 `tasks.cost` 只记每个节点**最后一次** LLM 调用（P1，**未关闭**）
 
@@ -567,6 +589,5 @@ Mock 造两条 `llm_call` 的节点），让 T1 先红一次；② 再二选一�
 上传与沙箱都没有第二道资源闸（A-4/A-5）、控制台比旧版少了看板/服务端分页/token 输入
 （B-1…B-3；B-4 检索测试已在 v0.2.0 补上）、评测里的 p 值与 nDCG 表都是历史口径且头号结论本机不可复跑（C-1…C-3）、
 可观测性只做到服务端一半（D-1…D-5）、依赖无 lock（E-1）、语料许可没进 LICENSE（F-1）、
-门禁对测试代码是半盲区、版本号有两个手写位且没人检查它、CI 只管测试不管 ruff/mypy/tsc（G-1/G-2/G-5/G-6）、
-SSE 那条流名为"从头订阅"其实不补发历史帧，丢了多少也没有计数器出口（G-7）、
-轨迹页「总耗时」把节点 span 与单步加了两遍而 `tasks.cost` 只记每个节点最后一次调用（H-1/H-2）。
+门禁对测试代码是半盲区、版本号有三个手写位且没人检查它、CI 只管测试不管 ruff/mypy/tsc（G-1/G-2/G-5/G-6）、
+G-8 登记全量 pytest 偶发 setup ERROR；H-1/H-2/G-7/B-4 已提交 v0.2.0 关闭申报（代码 + 证据，**待复核**）。

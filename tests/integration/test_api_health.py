@@ -38,7 +38,7 @@ def test_health_shape_and_checks(api_env: TestClient) -> None:
     assert response.status_code == 503
     body = response.json()
     assert body["status"] == "unhealthy"
-    assert body["version"] == "0.1.0"
+    assert body["version"] == "0.2.0"
     checks = body["checks"]
     assert checks["api"]["status"] == "ok"
     assert checks["database"]["status"] == "ok"
