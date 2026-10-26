@@ -360,23 +360,36 @@ python -m pytest tests/integration -o addopts= -q --collect-only | tail -1 # 243
 **复算命令 + 当前读数 + "截至 <日期>"**，且三样与改动它的那一笔 commit 同签。
 **已按此落**：README「测试」一节给的是命令 + 读数 + 日期，30 秒摘要那行改成引用它而不是重抄一份数。
 
-### G-5 版本号有两个手写位（P2，**未关闭**）
+### G-5 版本号有四个手写位（P2，**未关闭**）
 
-**现象**：`pyproject.toml` 的 `version = "0.1.0"` 与 `api/__init__.py` 的
-`__version__ = "0.1.0"` 是两份手写的同一数，没有单一真源。今天一致，改版本时漏一处
-就会表现为"包说 0.2.0、`/openapi.json` 的 `info.version` 还说 0.1.0"。
-**判据**：`grep -n '__version__' api/__init__.py` 是字面量 `"0.1.0"`（不是
+**现象**：`pyproject.toml` 的 `version`、`api/__init__.py` 的 `__version__`、
+`core/__init__.py` 的 `__version__` 与 `web-react/package.json` 的 `version`
+是四份手写的同一数，没有单一真源。今天都为 `0.2.0`，改版本时漏一处就会表现为
+"包说 0.2.1、`/openapi.json` 的 `info.version` 还说 0.2.0"。
+**判据**：`grep -n '__version__' api/__init__.py core/__init__.py` 是字面量赋值（不是
 `importlib.metadata.version(...)`）；而本机的 `python -m pip show agent-platform` /
 `importlib.metadata.version("agent-platform")` 在未 `pip install -e` 的解释器里
 **PackageNotFoundError**（⇒ 也不能简单把 metadata 当唯一真源，它要求包已安装）。
-**影响**：CI 与测试都不检查版本一致性，所以这个漂移是静默的。
+**影响**：CI 与测试都不检查版本一致性时，这个漂移是静默的。
 **关闭条件**：二选一 ——①`api/__init__.py` 改成 `try: importlib.metadata` /
 `except PackageNotFoundError: __version__ = "0.0.0+unknown"` 并让 `pyproject` 保持唯一手写位；
-②留两份但加一条用例断言两者相等（最便宜，且不改变"未安装也能跑"的现状）。
+②保留手写位但加一条用例断言**所有位置**相等（当前为四个手写位 +
+`web-react/package-lock.json` 的根级/`packages[""]` 镜像；最便宜，且不改变"未安装也能跑"的现状）。
 
 **口径更正（2026-10-25，v0.2.0）**：手写位实际是 **3 个**——`core/__init__.py:3` 还有一份
-`__version__`（旧读数漏了它）。v0.2.0 发布时三处已同步为 `0.2.0`，且 `test_api_health.py`
-的版本断言同步更新；但"三处相等"的一致性用例**仍未补**（关闭条件 ② 未做），本条不勾关闭。
+`__version__`（旧读数漏了它）。**2026-10-26 补充**：`web-react/package.json` 也是手写位，
+合计 **4 个**；`web-react/package-lock.json` 的根级与 `packages[""]` 是生成镜像。
+
+**关闭申报（2026-10-26，待复核，未勾关闭）**
+
+- **结论**：采用关闭条件 ② 的扩展版：**四个手写位 + lock 镜像**。
+- **改动**：新增 `tests/unit/test_version_consistency.py`（3 条）；`web-react/package.json`
+  与 `package-lock.json` 的根级/`packages[""]` 同步为 `0.2.0`；README 版本段同步为四个手写位。
+- **证据（2026-10-26 本机）**：`pytest tests/unit/test_version_consistency.py -o addopts= -q`
+  → **3 passed**（0.04 s）；`pytest tests/integration/test_api_health.py -o addopts= -q`
+  → **7 passed**（8.08 s）；`npm run typecheck` → **0 error**；全量
+  `pytest tests -o addopts= -q` → **1,095 passed**（87.82 s，辅助）。
+- **复核**：待复核者确认；标题仍为“未关闭”，不自行勾检。
 
 ---
 
@@ -597,5 +610,5 @@ Mock 造两条 `llm_call` 的节点），让 T1 先红一次；② 再二选一�
 上传与沙箱都没有第二道资源闸（A-4/A-5）、控制台比旧版少了看板/服务端分页/token 输入
 （B-1…B-3；B-4 检索测试已在 v0.2.0 补上）、评测里的 p 值与 nDCG 表都是历史口径且头号结论本机不可复跑（C-1…C-3）、
 可观测性只做到服务端一半（D-1…D-5）、依赖无 lock（E-1）、语料许可没进 LICENSE（F-1）、
-门禁对测试代码是半盲区、版本号有三个手写位且没人检查它、CI 只管测试不管 ruff/mypy/tsc（G-1/G-2/G-5/G-6）、
+门禁对测试代码是半盲区、版本号有四个手写位且已有一致性护栏（G-5 待复核）、CI 只管测试不管 ruff/mypy/tsc（G-1/G-2/G-5/G-6）、
 G-8 登记全量 pytest 偶发 setup ERROR；H-1/H-2/G-7/B-4 已关闭（复核者确认，2026-10-26）。

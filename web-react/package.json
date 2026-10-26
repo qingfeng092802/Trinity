@@ -1,7 +1,7 @@
 {
   "name": "agent1-console",
   "private": true,
-  "version": "0.1.0",
+  "version": "0.2.0",
   "type": "module",
   "description": "Trinity · React 控制台（三页：任务与日志 / 轨迹回放 / 评测与消融）",
   "scripts": {
