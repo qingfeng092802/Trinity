@@ -8,7 +8,7 @@
 结论处理：
     PASS → .env 固化 ``VECTOR_STORE_BACKEND=sqlite-vec``
     FAIL → 装 chromadb 并固化 ``VECTOR_STORE_BACKEND=chroma``，
-           失败原因写进 docs/m2_rag.md 附录（需人工确认后执行）
+           失败原因写进 docs/m2_rag.md 附录（由 team-lead 确认后执行）
 
 用法::
 

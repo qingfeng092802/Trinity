@@ -179,7 +179,7 @@ export default function TaskListPanel({
                   key={t.taskId}
                   /* 探针与排查都要用：选中态落到地址栏之后，"地址栏的 id 与高亮那行是同一条"
                      是一句必须能机械比对的断言。以前 DOM 里只有标题文案，比不了 id，
-                     于是这条断言只能靠标题文本间接比对，标题重名时无法区分（实测就有一条标题恰好叫「用三句话说明 RAG…」）。 */
+                     于是 R 趟这条只能靠文本猜 —— 一猜就猜错（本尊那条恰好叫「用三句话说明 RAG…」）。 */
                   data-task-id={t.taskId}
                   className={`tsk-item${t.taskId === activeId ? ' is-active' : ''}`}
                   onClick={() => {

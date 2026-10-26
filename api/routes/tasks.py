@@ -182,6 +182,7 @@ async def submit_task(body: TaskSubmitRequest) -> TaskAcceptedResponse:
     database.save_task(
         task_id=task_id,
         task=body.task,
+        session_id=body.session_id,
         status=STATUS_QUEUED,
         difficulty=body.difficulty,
         iterations=0,
@@ -204,6 +205,7 @@ async def submit_task(body: TaskSubmitRequest) -> TaskAcceptedResponse:
         # 三态语义（缺陷 A）：不传=None（全量）；true=全量；false=安全子集。
         use_tools=body.use_tools,
         enabled_tools=body.enabled_tools,
+        session_id=body.session_id,
         run_judge=body.run_judge,
         difficulty=body.difficulty,
         submitted_at=time.time(),
@@ -226,6 +228,7 @@ async def submit_task(body: TaskSubmitRequest) -> TaskAcceptedResponse:
     logger.info("任务受理完成 task_id=%s position=%d", task_id, position)
     return TaskAcceptedResponse(
         task_id=task_id,
+        session_id=body.session_id,
         status="queued" if position >= 1 else "running",
         queue_position=position,
         submitted_at=now(),
@@ -374,6 +377,7 @@ def _to_view(record: TaskRecord) -> TaskView:
     return TaskView(
         task_id=record.task_id,
         task=record.task,
+        session_id=record.session_id,
         status=record.status,
         iterations=record.iterations,
         score=record.score,
@@ -968,6 +972,20 @@ async def cancel_task(task_id: str) -> CancelResponse:
 # --------------------------------------------------------------------------- #
 # GET /tasks/{task_id}/stream  +  别名 GET /tasks/{task_id}/events
 # --------------------------------------------------------------------------- #
+def _parse_last_event_id(raw: str | None) -> int | None:
+    """解析 SSE 的 ``Last-Event-ID`` 头。
+
+    非法值按「没有游标」处理：宁可重放几帧，也不静默吞掉客户端没见过的帧。
+    """
+    if raw is None:
+        return None
+    try:
+        value = int(raw.strip())
+    except (TypeError, ValueError):
+        return None
+    return value if value >= 0 else None
+
+
 def _build_sse_response(task_id: str, request: Request) -> StreamingResponse:
     """构建任务 SSE 响应（``/stream`` 与 ``/events`` 共用同一份实现）。
 
@@ -975,7 +993,7 @@ def _build_sse_response(task_id: str, request: Request) -> StreamingResponse:
 
     Args:
         task_id: 任务 id。
-        request: 原始请求（用于检测客户端断连）。
+        request: 原始请求（用于检测客户端断连、读取 ``Last-Event-ID``）。
 
     Returns:
         ``text/event-stream`` 响应。
@@ -995,6 +1013,7 @@ def _build_sse_response(task_id: str, request: Request) -> StreamingResponse:
     settings = get_settings()
     heartbeat = max(float(settings.api_sse_heartbeat_seconds), 0.1)
     bus = get_event_bus()
+    last_event_id = _parse_last_event_id(request.headers.get("last-event-id"))
 
     async def generate() -> Any:
         """SSE 帧生成器（在 loop 线程执行）。
@@ -1007,8 +1026,12 @@ def _build_sse_response(task_id: str, request: Request) -> StreamingResponse:
         ``state["seq"]``、这里的 ``seq``），同一根连接上必然撞号，而
         ``seq = max(seq, event.seq)`` 只是把本地号往回垫一点，发出去的帧仍带
         旧号 —— 一个既不单调也不唯一的 ``id:`` 比没有 ``id:`` 更糟。
+
+        G-7：``subscribe()`` 会把该任务内存里仍保留的历史帧先补进本连接的队列；
+        带 ``Last-Event-ID`` 重连时跳过 ``seq <= last_event_id`` 的帧。历史只在
+        内存、只保留 60s —— 跨进程重启不补发。
         """
-        subscription = await bus.subscribe(task_id)
+        subscription = await bus.subscribe(task_id, last_event_id=last_event_id)
         started = time.perf_counter()
         try:
             yield format_retry_frame()

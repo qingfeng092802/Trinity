@@ -21,7 +21,7 @@
 
 ⚠️ **隔离库硬约束（供 ``harness.py`` 使用，务必遵守）**
 ------------------------------------------------------
-``data/trinity.db`` **不只是任务库**，它同时是 **RAG 向量库**
+``data/agent_platform.db`` **不只是任务库**，它同时是 **RAG 向量库**
 （``documents`` / ``chunks`` / ``knowledge_vec*`` 索引与 ``knowledge_meta`` 都在同一个文件）。
 因此：
 

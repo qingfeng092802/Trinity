@@ -21,8 +21,8 @@ services:
     build:
       context: .
       dockerfile: Dockerfile
-    image: trinity:latest
-    container_name: trinity-api
+    image: agent-platform:latest
+    container_name: agent-platform-api
     restart: unless-stopped
     ports:
       # 宿主端口可用 API_PORT 覆盖；容器内固定 8000
@@ -31,7 +31,7 @@ services:
       # 容器内绑 0.0.0.0；对外暴露前请务必设置 API_AUTH_TOKEN
       API_HOST: "0.0.0.0"
       API_PORT: "8000"
-      DB_URL: "sqlite:///data/trinity.db"
+      DB_URL: "sqlite:///data/agent_platform.db"
       # 以下三项留空时不覆盖镜像默认值，由 .env / 宿主环境注入
       LLM_API_KEY: "${LLM_API_KEY:-}"
       LLM_BASE_URL: "${LLM_BASE_URL:-https://api.deepseek.com/v1}"
@@ -40,10 +40,10 @@ services:
       API_AUTH_TOKEN: "${API_AUTH_TOKEN:-}"
       LOG_LEVEL: "${LOG_LEVEL:-INFO}"
     volumes:
-      # 单一数据卷持久化 SQLite（trinity.db，含知识库的向量表）、
+      # 单一数据卷持久化 SQLite（agent_platform.db，含知识库的向量表）、
       # 上传原件（knowledge/files）与工具沙箱（workspace）。
       # 三者在同一个 SQLite 文件 / 同目录树下，拆成多个卷反而容易不一致。
-      - trinity_data:/app/data
+      - agent_data:/app/data
     healthcheck:
       test:
         - CMD
@@ -55,14 +55,14 @@ services:
       start_period: 20s
       retries: 3
     networks:
-      - trinity_net
+      - agent_net
 
 volumes:
   # 命名卷而非绑定挂载：Windows / macOS 上绑定挂载 SQLite 会有文件锁语义问题，
   # 而 SQLite 的 WAL 依赖真实的 POSIX 文件锁。
-  trinity_data:
-    name: trinity-data
+  agent_data:
+    name: agent-platform-data
 
 networks:
-  trinity_net:
-    name: trinity-net
+  agent_net:
+    name: agent-platform-net

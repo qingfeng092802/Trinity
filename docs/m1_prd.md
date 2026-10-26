@@ -11,7 +11,7 @@
 |---|---|
 | Language | 中文 |
 | Programming Language | Python 3.11；新增 **FastAPI + Uvicorn + Pydantic v2**（API 层）；**Streamlit 沿用**（前端不做框架迁移） |
-| Project Name | `trinity_m1_rest_api` |
+| Project Name | `agent_platform_m1_rest_api` |
 | 文档类型 | 简单 PRD（不做竞品/市场分析） |
 | 依赖现状 | `pytest-asyncio` 已在 dev 依赖中，`asyncio_mode=auto` 已配置；**FastAPI / uvicorn 需新加依赖** |
 
@@ -113,7 +113,7 @@
 | `canceled` | 用户主动取消 | **新增** | 是 |
 
 - 终态集合扩展为 `{done, failed, aborted, canceled}`（现有 `core/workflow/state.py::TERMINAL_STATUSES` 为工作流内部状态，不动；API 层另定义 `API_TERMINAL_STATUSES`）。
-- `canceled` **不计入完成率**，也不计入 `failed`（`evaluation/metrics.py` 的统计口径新增一类或忽略，随 §8 Q4 结论确定）。
+- `canceled` **不计入完成率**，也不计入 `failed`（`evaluation/metrics.py` 的统计口径新增一类或忽略，由架构师定，见 §8 Q4）。
 - 状态流转的唯一写入方：worker（执行中）+ API handler（受理时写 `queued`、取消时写 `canceled`）；worker 落终态前必须再次确认未被取消，防止覆盖。
 
 ---
@@ -304,7 +304,7 @@
 ```json
 {
   "status": "healthy | degraded | unhealthy",
-  "version": "0.2.0",
+  "version": "0.1.0",
   "uptime_seconds": 1234,
   "checks": {
     "api":      { "status": "ok", "detail": "FastAPI 0.x" },
@@ -472,7 +472,7 @@
 
 ---
 
-## 8. 已知开放问题与后续计划
+## 8. 待确认问题（需架构师 / 用户拍板）
 
 | # | 问题 | 备选方案 | 我的倾向 |
 |---|---|---|---|

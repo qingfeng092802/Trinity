@@ -3,7 +3,7 @@
  * 口径说明（重要，别改错）：
  *  - TaskStatus 的取值**只来自后端**，见 api/schemas.py 与 ui/pages/__init__.py 的
  *    STATUS_LABELS：queued / running / done / aborted / failed / canceled。
- *    需求描述里写的「超时」在后端**没有独立状态**——迭代耗尽或超时统一落到
+ *    任务书里写的「超时」在后端**没有独立状态**——迭代耗尽或超时统一落到
  *    `aborted`（强制收口）。所以这里不编一个 timeout 状态，只在展示层把
  *    aborted 标注为「已收口（迭代耗尽/超时）」。
  *  - 工具入参 `arguments` 在**线上是 object**（设计文档 §6.2，后端
@@ -553,6 +553,26 @@ export interface KnowledgeOverview {
    *  运行期 `undefined`）。K3 当时没吸取这一点，R-03 这一条开始新字段一律按"可能不在"标。
    *  消费方（`KnowledgePage`）判的是"形状对不对"，不是"响应有没有"。 */
   supported_formats?: string[];
+}
+
+/** POST /knowledge/search 的一条命中（分数是单次查询内归一化的相对分）。 */
+export interface KnowledgeSearchHit {
+  document_name: string;
+  chunk_seq: number;
+  start_char: number;
+  end_char: number;
+  text: string;
+  bm25_score: number;
+  vector_score: number;
+  score: number;
+}
+
+/** POST /knowledge/search 的 200 响应；空库返回 hits: []，不是错误。 */
+export interface KnowledgeSearchResponse {
+  query: string;
+  top_k: number;
+  took_ms: number;
+  hits: KnowledgeSearchHit[];
 }
 
 /** 文档状态机里**已知**的六个值，与 ``api/constants.py`` 的 ``DOC_*`` 一一对应。

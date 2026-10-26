@@ -2,13 +2,14 @@
  * 用法：node tools/uicheck/probe4.cjs
  */
 const { chromium } = require('playwright-core');
-const { resolveChrome } = require('./_chrome.cjs');
 
 const BASE = process.env.BASE_URL || 'http://127.0.0.1:5199';
 
 (async () => {
   const browser = await chromium.launch({
-    executablePath: resolveChrome(),
+    executablePath:
+      process.env.CHROME_PATH ||
+      'process.env.CHROME || 'C:/Program Files/Google/Chrome/Application/chrome.exe'',
   });
   const errors = [];
   const page = await browser.newPage({ viewport: { width: 1440, height: 900 } });

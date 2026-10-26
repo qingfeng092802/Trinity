@@ -155,7 +155,7 @@ M1 **不提供**触发批量评测的接口。
 ```json
 {
   "status": "healthy | degraded | unhealthy",
-  "version": "0.2.0",
+  "version": "0.1.0",
   "uptime_seconds": 1234,
   "checks": {
     "api": {"status": "ok"},

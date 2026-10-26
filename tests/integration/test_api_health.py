@@ -7,7 +7,6 @@ from typing import Any
 
 import pytest
 
-import api
 from tests.integration.conftest import TestClient
 
 EXPECTED_PATHS = {
@@ -39,9 +38,7 @@ def test_health_shape_and_checks(api_env: TestClient) -> None:
     assert response.status_code == 503
     body = response.json()
     assert body["status"] == "unhealthy"
-    # 不写死字面量：/health.version 由 api.__version__ 提供，版本一致性另由
-    # tests/unit/test_version_consistency.py 钉住（见 known_residuals G-5）
-    assert body["version"] == api.__version__
+    assert body["version"] == "0.2.0"
     checks = body["checks"]
     assert checks["api"]["status"] == "ok"
     assert checks["database"]["status"] == "ok"
@@ -67,6 +64,34 @@ def test_health_queue_counts_match_submissions(api_env: TestClient) -> None:
         matched = queue["running"] + queue["queued"] == 2
         time.sleep(0.05)
     assert matched, f"健康检查的队列计数与提交数不符：{queue}"
+
+
+def test_health_exposes_sse_drop_counters(
+    api_env: TestClient, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """G-7：``_dropped_without_loop`` 等丢弃计数必须有出口（``checks.sse``）。
+
+    这里真的制造一次「loop 未绑定就发布」：计数器从 1 可读，证明 /health 读的是
+    活值而不是一个永远为 0 的摆设。
+    """
+    from api.deps import get_event_bus
+    from api.events import StreamEvent
+
+    bus = get_event_bus()
+    monkeypatch.setattr(bus, "_loop", None)  # 模拟启动前发布（未绑定 loop）
+    bus.publish(StreamEvent(task_id="task-health01", name="node", seq=1, data={}))
+
+    sse = api_env.get("/health").json()["checks"]["sse"]
+    assert sse["status"] == "ok"
+    assert set(sse) >= {
+        "subscriber_topics",
+        "subscribers",
+        "history_tasks",
+        "dropped_without_loop",
+        "dropped_loop_closed",
+        "dropped_queue_full",
+    }
+    assert sse["dropped_without_loop"] == 1
 
 
 def test_eval_list_empty_and_validation(api_env: TestClient) -> None:

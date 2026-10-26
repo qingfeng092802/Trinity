@@ -5,11 +5,9 @@ const { chromium } = require('playwright-core');
 const fs = require('fs');
 const path = require('path');
 
-// Chrome 路径：统一由 ./_chrome.cjs 解析（优先环境变量，回退各平台默认安装位置）
-const CHROME = require('./_chrome.cjs').resolveChrome();
+const CHROME = 'process.env.CHROME || 'C:/Program Files/Google/Chrome/Application/chrome.exe'';
 const BASE = process.env.BASE_URL || 'http://127.0.0.1:5173';
-// 截图输出目录：优先读环境变量；回退到脚本同目录下的相对路径
-const OUT = process.env.OUT_DIR || path.join(__dirname, 'shots');
+const OUT = process.env.OUT_DIR || 'D:/WB/2026-09-21-23-02-06/agent1/web-react/tools/uicheck/shots';
 
 const TASK_ID = 'task-3f9a1c02be11';
 
@@ -255,7 +253,7 @@ async function run() {
     await shot(page, `${c.name}-1a-tasks-empty`);
 
     // 页①：提交后（实时日志 + 结果）
-    // ⚠️ 已知限制（2026-09-23 登记，先于当轮 trace.arguments 归一化改动）：
+    // ⚠️ 已知漂移（2026-09-23 挂账，先于本轮 trace.arguments 归一化改动）：
     // 示例按钮已进「配置」弹层、提交按钮改名「提交」，这两步对不上当前 UI，会 30s 超时。
     await page.getByRole('button', { name: '数值计算' }).click();
     await page.getByRole('button', { name: '提交任务' }).click();

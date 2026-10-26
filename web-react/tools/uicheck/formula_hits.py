@@ -1,12 +1,12 @@
 """真实答案里的「公式形态」命中率 —— 决定要不要上 KaTeX 的唯一依据。
 
 只读打开 sqlite（mode=ro），一条 SQL 都不写。
-跑法：python web-react/tools/uicheck/formula_hits.py
+跑法：/d/anada/python.exe web-react/tools/uicheck/formula_hits.py
 """
 import re
 import sqlite3
 
-DBS = ("data/trinity.db", "data/trinity_1.db")
+DBS = ("data/agent_platform.db", "data/agent_platform_1.db")
 
 BRACE = r"[_\^]\s*\{[^{}]*\}"
 MACRO = r"\\" + r"(?:sum|sqrt|frac|cdot|Delta|alpha|beta|eta|gamma|mu|lambda|rho|sigma|theta|times|approx|le|ge|ne)"

@@ -1,13 +1,14 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import type { CSSProperties } from 'react';
-import { Button, Popconfirm, Table } from 'antd';
+import { Button, Input, Popconfirm, Select, Table } from 'antd';
 import type { ColumnsType } from 'antd/es/table';
 import {
   DeleteOutlined,
   InboxOutlined,
   RedoOutlined,
   ReloadOutlined,
+  SearchOutlined,
 } from '@ant-design/icons';
 
 import {
@@ -16,6 +17,7 @@ import {
   fetchDocuments,
   fetchKnowledgeOverview,
   retryDocument,
+  searchKnowledge,
   uploadDocument,
 } from '../api/client';
 import {
@@ -28,7 +30,7 @@ import {
   SurfaceCard,
 } from '../components/ui';
 import { useRefresh } from '../hooks/useRefresh';
-import type { DocumentView, KnownDocumentStatus } from '../types';
+import type { DocumentView, KnownDocumentStatus, KnowledgeSearchResponse } from '../types';
 import { fmtBytes, fmtDateTime, fmtInt } from '../utils/format';
 
 /** 页面 ④：知识库 —— 上传、看索引进度、删除、重试。
@@ -297,6 +299,12 @@ export default function KnowledgePage() {
   const [busy, setBusy] = useState(false);
   const [deleting, setDeleting] = useState<string | null>(null);
   const [retrying, setRetrying] = useState<string | null>(null);
+  /* 试检索：请求体走 POST /knowledge/search；空库是 200 + hits: []，不是错误。 */
+  const [searchQuery, setSearchQuery] = useState('');
+  const [searchTopK, setSearchTopK] = useState(5);
+  const [searching, setSearching] = useState(false);
+  const [searchResult, setSearchResult] = useState<KnowledgeSearchResponse | null>(null);
+  const [searchError, setSearchError] = useState('');
   const inputRef = useRef<HTMLInputElement | null>(null);
   /** 退避定时器：卸载时全清，否则组件没了还有 setTimeout 在写它的 state。 */
   const timers = useRef<number[]>([]);
@@ -309,6 +317,28 @@ export default function KnowledgePage() {
     void queryClient.invalidateQueries({ queryKey: ['knowledge-documents'] });
     void queryClient.invalidateQueries({ queryKey: ['knowledge-overview'] });
   }, [queryClient]);
+
+  const runSearch = useCallback(async () => {
+    const query = searchQuery.trim();
+    if (!query) {
+      setSearchResult(null);
+      setSearchError('请输入检索问题');
+      return;
+    }
+    setSearching(true);
+    setSearchError('');
+    try {
+      setSearchResult(await searchKnowledge({ query, top_k: searchTopK }));
+    } catch (err) {
+      const e = describeFetchError(err);
+      setSearchResult(null);
+      setSearchError(
+        e.code === 'fingerprint_mismatch' ? `${e.message}（需要全量重索引）` : e.message,
+      );
+    } finally {
+      setSearching(false);
+    }
+  }, [searchQuery, searchTopK]);
 
   // 顶栏「刷新」→ 重取概览与列表
   useEffect(() => {
@@ -765,6 +795,78 @@ export default function KnowledgePage() {
           )}
         </div>
       )}
+
+      {/* ------------------------- 试检索 ------------------------- */}
+      <SurfaceCard
+        title="试检索"
+        icon={<SearchOutlined />}
+        sub="POST /knowledge/search · 分数是单次查询内归一化的相对分"
+      >
+        <div className="kb-search-bar">
+          <Input.Search
+            placeholder="输入一个问题，例如：六类线施工弯曲半径要求"
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+            onSearch={() => void runSearch()}
+            enterButton="检索"
+            allowClear
+            loading={searching}
+            aria-label="试检索问题"
+          />
+          <Select
+            value={searchTopK}
+            onChange={setSearchTopK}
+            options={Array.from({ length: 20 }, (_, index) => ({
+              value: index + 1,
+              label: `${index + 1} 条`,
+            }))}
+            style={{ width: 104 }}
+            aria-label="返回条数"
+          />
+        </div>
+        {searchError && (
+          <div className="kb-action-error kb-search-error" role="alert">
+            {searchError}
+          </div>
+        )}
+        {searchResult && searchResult.hits.length === 0 && (
+          <EmptyState
+            compact
+            icon={<SearchOutlined />}
+            title={ov?.chunk_count === 0 ? '库为空' : '没有命中'}
+            desc={
+              ov?.chunk_count === 0
+                ? '先上传一份文档，等它完成向量化，再来试检索。'
+                : '换一个问法，或把 top_k 调大一点；这次检索没有返回任何 chunk。'
+            }
+          />
+        )}
+        {searchResult && searchResult.hits.length > 0 && (
+          <div className="kb-hit-list">
+            <div className="kb-hit-meta">
+              命中 {fmtInt(searchResult.hits.length)} 条 · 耗时 {fmtInt(searchResult.took_ms)}ms · top_k{' '}
+              {fmtInt(searchResult.top_k)}
+            </div>
+            {searchResult.hits.map((hit) => (
+              <article className="kb-hit" key={`${hit.document_name}-${hit.chunk_seq}`}>
+                <header className="kb-hit-head">
+                  <span className="kb-hit-doc">{hit.document_name}</span>
+                  <span className="kb-hit-chunk">chunk #{hit.chunk_seq}</span>
+                  <span className="kb-hit-score">综合 {hit.score.toFixed(4)}</span>
+                </header>
+                <p className="kb-hit-text">{hit.text}</p>
+                <footer className="kb-hit-scores">
+                  <span>BM25 {hit.bm25_score.toFixed(4)}</span>
+                  <span>向量 {hit.vector_score.toFixed(4)}</span>
+                  <span>
+                    字符 {hit.start_char}–{hit.end_char}
+                  </span>
+                </footer>
+              </article>
+            ))}
+          </div>
+        )}
+      </SurfaceCard>
 
       {/* ------------------------- 上传区 ------------------------- */}
       <SurfaceCard

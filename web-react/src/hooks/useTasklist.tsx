@@ -8,9 +8,7 @@ interface TasklistContextValue {
 }
 
 const TasklistContext = createContext<TasklistContextValue | null>(null);
-const KEY = 'trinity-console.tasklist-collapsed';
-/** 旧键只在**读取**时兜底一次，写入一律用新键。 */
-const LEGACY_KEY = 'agent1-console.tasklist-collapsed';
+const KEY = 'agent1-console.tasklist-collapsed';
 
 /** 顶栏的「收起 / 展开任务列表」按钮 ↔ 任务列表栏之间的通道。
  *
@@ -21,7 +19,7 @@ const LEGACY_KEY = 'agent1-console.tasklist-collapsed';
 export function TasklistProvider({ children }: { children: ReactNode }) {
   const [collapsed, setCollapsed] = useState(() => {
     try {
-      return (localStorage.getItem(KEY) ?? localStorage.getItem(LEGACY_KEY)) === '1';
+      return localStorage.getItem(KEY) === '1';
     } catch {
       return false;
     }

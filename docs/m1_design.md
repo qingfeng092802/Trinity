@@ -1,7 +1,7 @@
 # M1 系统设计 + 任务分解：REST API 层 + 异步任务队列
 
 > 阶段 5 · M1（第 1-2 周 · 只做 P0）
-> 需求基线：`docs/m1_prd.md`　|　面向：工程师施工图
+> 需求基线：`docs/m1_prd.md`　|　架构：高见远　|　面向：工程师施工图
 > 本文只做**设计**，不含实现代码。
 
 ---
@@ -96,7 +96,7 @@
 
 | 相对路径 | 职责 | 预估行数 |
 |---|---|---|
-| `api/__init__.py` | 包声明 + `__version__ = "0.2.0"`（`/health.version` 读它） | 12 |
+| `api/__init__.py` | 包声明 + `__version__ = "0.1.0"`（`/health.version` 读它） | 12 |
 | `api/constants.py` | **全局唯一常量源**：任务状态常量、`API_TERMINAL_STATUSES`、SSE 事件名、`TASK_ID_PATTERN`、`AUTH_EXEMPT_PATHS`、`MAX_UPDATE_CHARS` | 60 |
 | `api/errors.py` | `ErrorCode` 枚举 + `ApiError` 异常 + 三个异常处理器（ApiError / HTTPException / RequestValidationError）+ `request_id` ContextVar | 110 |
 | `api/schemas.py` | 全部 Pydantic 请求/响应模型（§3.1） | 280 |
@@ -690,7 +690,7 @@ sequenceDiagram
 7. `evaluation/trace.py`：`TraceStore.__init__` 的 `executescript` 里追加 `PRAGMA journal_mode=WAL;` 与 `PRAGMA busy_timeout=5000;`（**独立连接也要设，否则白改**）。
 8. `storage/cache.py`：新增 `PROGRESS_PREFIX = "progress:"` 与 `save_progress(task_id, data) -> bool` / `load_progress(task_id) -> dict|None` / `drop_progress(task_id) -> bool`（TTL 用 `cache_ttl_seconds`）。
 9. `evaluation/metrics.py`：`BatchMetrics` 加 `canceled: int`；`summarize` 里 `canceled = sum(1 for o in outcomes if o.status == "canceled")`；`as_dict` 加键；`format_report` 的「完成 / 收口 / 失败」行尾补 `/ 取消 {canceled}`；空输入分支补 `canceled=0`。
-10. `api/__init__.py`：`__version__ = "0.2.0"`。
+10. `api/__init__.py`：`__version__ = "0.1.0"`。
 
 **验收**
 
@@ -1112,7 +1112,7 @@ cancel handler 在 loop 线程，worker 在池线程。若共用一把锁，work
 | `Database.save_task` 的读-改-写 | 仅用于受理阶段（INSERT）；后续状态迁移一律走 CAS |
 | `synchronous=NORMAL` | WAL 下的推荐设置，兼顾性能与持久性（掉电最多丢最后一个 checkpoint） |
 
-> **Windows 注意**：WAL 要求数据库文件在本地磁盘（NTFS OK），**不要**放在网络共享盘/SMB 上，否则会出现 `disk I/O error`。默认路径 `data/trinity.db` 在项目内，合规。
+> **Windows 注意**：WAL 要求数据库文件在本地磁盘（NTFS OK），**不要**放在网络共享盘/SMB 上，否则会出现 `disk I/O error`。默认路径 `data/agent_platform.db` 在项目内，合规。
 
 ---
 

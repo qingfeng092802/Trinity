@@ -12,8 +12,7 @@ const path = require('path');
 const fs = require('fs');
 
 // 用本机已装的 Chrome，而不是 playwright 自带的 chromium（本机没下载那个）
-// Chrome 路径：统一由 ./_chrome.cjs 解析（优先环境变量，回退各平台默认安装位置）
-const CHROME = require('./_chrome.cjs').resolveChrome();
+const CHROME = 'process.env.CHROME || 'C:/Program Files/Google/Chrome/Application/chrome.exe'';
 
 const BASE = process.env.BASE_URL || 'http://127.0.0.1:5199';
 const OUT = path.resolve(__dirname, 'shots');

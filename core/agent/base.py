@@ -31,6 +31,7 @@ from api.constants import (
     TASK_EVT_TOOL_CALL,
 )
 from config import PROJECT_ROOT, Settings, get_settings
+from core.agent.session import SessionTurn
 from core.events import AnswerStream, EventRecord, TaskEventSink, UsageSink
 from core.llm.adapter import LLMAdapter, Usage, get_adapter
 from core.workflow.state import (
@@ -180,6 +181,7 @@ class NodeContext:
             不流式。与 ``event_sink`` 同样是「可选出口」：没有它，节点逻辑
             一字不变，只是屏上没有逐段出现的文字。
         usage_sink: **用量增量**出口（SSE ``usage`` 帧）；None 同理。
+        session_history: 同一 session 最近几轮已完成问答；只给 planner 用。
     """
 
     llm: LLMAdapter
@@ -190,6 +192,8 @@ class NodeContext:
     event_sink: TaskEventSink | None = None
     answer_stream: AnswerStream | None = None
     usage_sink: UsageSink | None = None
+    #: 同一 session 最近几轮已完成问答（Session Memory v1）；只给 planner 用
+    session_history: tuple[SessionTurn, ...] = ()
 
     @classmethod
     def create(
@@ -203,6 +207,7 @@ class NodeContext:
         event_sink: TaskEventSink | None = None,
         answer_stream: AnswerStream | None = None,
         usage_sink: UsageSink | None = None,
+        session_history: tuple[SessionTurn, ...] = (),
     ) -> NodeContext:
         """按需注入，未传的部分取全局默认值。"""
         resolved_settings = settings or get_settings()
@@ -215,6 +220,7 @@ class NodeContext:
             event_sink=event_sink,
             answer_stream=answer_stream,
             usage_sink=usage_sink,
+            session_history=session_history,
         )
 
 
@@ -249,6 +255,13 @@ class BaseNode(ABC):
         #: 在 :meth:`__call__` 开头重置；节点实例是**每任务一份**
         #: （``api/runner.py:166`` 每次 build 都新建图与新节点），故放实例上不会跨任务串。
         self._llm_calls_logged = 0
+        #: 节点内多次 LLM 调用的用量累加（H-2）：``TraceRecord`` 只在节点出口落一条，
+        #: 不能只取 ``last_usage``，否则多步 executor 的 ``tasks.cost`` 只记最后一步。
+        #: 这四个值在 :meth:`__call__` 开头重置；事件通道仍按每次调用逐条落账。
+        self._node_usage_calls = 0
+        self._node_token_in = 0
+        self._node_token_out = 0
+        self._node_cost = 0.0
 
     # ---- 便捷访问 ----
     @property
@@ -268,6 +281,11 @@ class BaseNode(ABC):
         started = time.perf_counter()
         # 每次节点调用重新计：executor 的循环会往里加，出口的 L1 要看它的数决定发不发。
         self._llm_calls_logged = 0
+        # 节点级用量累加也按节点调用重置（executor 一次调用可能跑多步）。
+        self._node_usage_calls = 0
+        self._node_token_in = 0
+        self._node_token_out = 0
+        self._node_cost = 0.0
         status: Literal["success", "failed", "timeout"] = "success"
         # 调用前记录本线程的用量快照，用于判定「本次节点是否**真的**发生过 LLM 调用」。
         # 判据是对象**身份**而非数值：真实适配器与 Mock 每次调用都会把 ``last_usage``
@@ -370,6 +388,18 @@ class BaseNode(ABC):
             # 非最后一步的调用（T04 A3 验收：knowledge_search 必须可回放）
             for item in results:
                 tool_calls.extend(dict(call) for call in item["tool_calls"])
+        # H-2：节点出口只落一条 TraceRecord，其成本/用量必须取本节点**全部**调用的
+        # 累加值；``usage`` 只是最后一次调用的快照，单次调用的节点仍走它。
+        # 事件通道（_emit_events）保持原样：executor 的逐条 llm_call 已经各自落账，
+        # 再把累加值写进汇总事件就会双计。
+        if self._node_usage_calls:
+            token_in = self._node_token_in
+            token_out = self._node_token_out
+            cost = self._node_cost
+        else:
+            token_in = int(getattr(usage, "token_in", 0) or 0)
+            token_out = int(getattr(usage, "token_out", 0) or 0)
+            cost = float(getattr(usage, "cost", 0.0) or 0.0)
         sink(
             TraceRecord(
                 trace_id=f"{task_id}-{self.role}-{uuid4().hex[:8]}",
@@ -382,9 +412,9 @@ class BaseNode(ABC):
                 timestamp=time.time(),
                 duration_ms=duration_ms,
                 status=status,
-                token_in=int(getattr(usage, "token_in", 0) or 0),
-                token_out=int(getattr(usage, "token_out", 0) or 0),
-                cost=float(getattr(usage, "cost", 0.0) or 0.0),
+                token_in=token_in,
+                token_out=token_out,
+                cost=cost,
             )
         )
 
@@ -412,12 +442,20 @@ class BaseNode(ABC):
 
         Returns:
             是否真落了一条。没有 ``event_sink`` 时返回 ``False``（单测与批量评测不传
-            database 就是这一档）—— 此时出口的汇总那条照常工作，行为与改之前一致。
+            database 就是这一档）；但**用量累加仍会执行**——节点出口的
+            ``TraceRecord`` 靠它汇总多步调用，不能因为不落事件就丢账。
         """
+        usage = None if zero_usage else getattr(self.llm, "last_usage", None)
+        # H-2：累加必须在 ``sink is None`` 判断**之前**。批量评测不传 event_sink，
+        # 若只在落事件时累加，TraceRecord 仍会只记最后一次调用。
+        if usage is not None:
+            self._node_usage_calls += 1
+            self._node_token_in += int(getattr(usage, "token_in", 0) or 0)
+            self._node_token_out += int(getattr(usage, "token_out", 0) or 0)
+            self._node_cost += float(getattr(usage, "cost", 0.0) or 0.0)
         sink = self.ctx.event_sink
         if sink is None:
             return False
-        usage = None if zero_usage else getattr(self.llm, "last_usage", None)
         try:
             sink(
                 EventRecord(

@@ -7,8 +7,7 @@ const { chromium } = require('playwright-core');
 const fs = require('fs');
 const path = require('path');
 
-// Chrome 路径：统一由 ./_chrome.cjs 解析（优先环境变量，回退各平台默认安装位置）
-const CHROME = require('./_chrome.cjs').resolveChrome();
+const CHROME = 'process.env.CHROME || 'C:/Program Files/Google/Chrome/Application/chrome.exe'';
 const BASE = process.env.BASE_URL || 'http://127.0.0.1:5173';
 const OUT = process.env.OUT_DIR || path.resolve(__dirname, 'shots/toolcard');
 const { installMocks, traceBody } = require('./mocks.cjs');
@@ -236,7 +235,7 @@ async function pass1(browser, scheme, label) {
   });
   /* 剪贴板读要授权，否则 P2 那条只能断言按钮存在，测不到「复制到了什么」 */
   await ctx.grantPermissions(['clipboard-read', 'clipboard-write']);
-  await ctx.addInitScript((s) => localStorage.setItem('trinity-console.theme', s), scheme);
+  await ctx.addInitScript((s) => localStorage.setItem('agent1-console.theme', s), scheme);
   const page = await ctx.newPage();
   const errors = [];
   const hits = [];

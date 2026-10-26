@@ -1,7 +1,7 @@
 """成本归因面板 · 刀 1（契约层）用例：T1–T7 + C6。
 
 对应 ``docs/cost_attribution_plan_2026-09-25.md`` §10.3。全部走 fast 集：
-不起队列、不碰真实 ``data/trinity.db``、零真实 token。
+不起队列、不碰真实 ``data/agent_platform.db``、零真实 token。
 
 **为什么这些用例值得存在**（每条都写着「失败意味着什么」）：
 面板的全部价值是数字可信，而它最容易说谎的三处是
@@ -146,7 +146,7 @@ def client(monkeypatch: pytest.MonkeyPatch, database: Database) -> Iterator[Test
 
     用 ``TestClient(app)`` 而**不进 context manager**：进了就跑 lifespan，而
     ``api/main.py`` 的启动钩子调的是 ``api.deps.get_database()``（**上面 patch 不到的那
-    一个**）⇒ 会在真实 ``data/trinity.db`` 上建表补列，还会起一份线程池队列。
+    一个**）⇒ 会在真实 ``data/agent_platform.db`` 上建表补列，还会起一份线程池队列。
     本端点是纯 DB 读，不需要队列；``def`` 路由走线程池这件事 TestClient 照样覆盖。
     """
     monkeypatch.setattr(tasks_routes, "get_database", lambda: database)

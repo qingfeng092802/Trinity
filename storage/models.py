@@ -49,6 +49,8 @@ class TaskRecord(Base):
 
     task_id: Mapped[str] = mapped_column(String(64), primary_key=True)
     task: Mapped[str] = mapped_column(Text, nullable=False)
+    #: 多轮会话 id（P2 Session Memory v1）。NULL = 这条任务不参与会话记忆。
+    session_id: Mapped[str | None] = mapped_column(String(64), nullable=True)
     status: Mapped[str] = mapped_column(String(16), nullable=False, default="running")
     iterations: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
     score: Mapped[int | None] = mapped_column(Integer, nullable=True)
@@ -70,11 +72,17 @@ class TaskRecord(Base):
         DateTime, nullable=False, server_default=func.now(), onupdate=func.now()
     )
 
+    __table_args__ = (
+        # Session Memory v1：按会话取最近几轮 done 任务；created_at 决定轮次顺序
+        Index("idx_tasks_session_created", "session_id", "created_at"),
+    )
+
     def as_dict(self) -> dict[str, Any]:
         """转成可直接 json.dumps 的字典。"""
         return {
             "task_id": self.task_id,
             "task": self.task,
+            "session_id": self.session_id,
             "status": self.status,
             "iterations": self.iterations,
             "score": self.score,

@@ -1,7 +1,7 @@
 """B-9（P1）：仓库里不许有"和同名原文件逐字节全等"的 ``_1`` 副本。
 
 2026-09-26 清理掉 1,034 个（``evaluation/`` 全目录，逐字节比对后删除；``data/`` 那个
-副本库 ``trinity_1.db`` **刻意留着**，因为 ``docs/known_residuals.md`` 与
+副本库 ``agent_platform_1.db`` **刻意留着**，因为 ``docs/known_residuals.md`` 与
 ``web-react/tools/uicheck/formula_hits.py`` 都把它当第二个库在查）。
 
 为什么这不只是"死代码好不好看"的问题：
@@ -15,7 +15,7 @@
   检索指标会在没人改任何算法的情况下漂掉，而且**不会报错**。
 
 来源线索：``evaluation/reports/ablation/ablation_summary.json`` 里记的 ``fixtures``
-路径是 ``…\\<某处>\\trinity-zipped\\evaluation\\fixtures_cmrc`` —— 这批副本极可能来自
+路径是 ``…\\Desktop\\agent1-zipped\\evaluation\\fixtures_cmrc`` —— 这批副本极可能来自
 一次"解压到已存在的目录 / 云盘同步冲突"，工具用 ``_1`` 后缀保住了两份。不查清来源
 它还会再长出来，所以这里钉一条用例而不是一次性人工清理。
 """
@@ -123,8 +123,8 @@ def test_缺语料的机器上是skip不是fail() -> None:
 
 
 def test_副本库不在这个判据范围内() -> None:
-    """钉住"我们刻意没删 ``data/trinity_1.db``"这件事，别让它悄悄进判据。"""
-    copy_db = PROJECT_ROOT / "data" / "trinity_1.db"
+    """钉住"我们刻意没删 ``data/agent_platform_1.db``"这件事，别让它悄悄进判据。"""
+    copy_db = PROJECT_ROOT / "data" / "agent_platform_1.db"
     assert not copy_db.exists() or (PROJECT_ROOT / "docs" / "known_residuals.md").exists(), (
         "副本库还在，但引用它的文档没了 —— 要么删库，要么改判据，别两边挂着"
     )

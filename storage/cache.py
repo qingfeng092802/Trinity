@@ -140,7 +140,7 @@ class RedisCache:
             except ImportError as exc:
                 logger.warning(
                     "redis 包未安装，缓存退化为进程内缓存（功能不受影响；"
-                    "需要 Redis 时 pip install trinity[redis]）：%s",
+                    "需要 Redis 时 pip install agent-platform[redis]）：%s",
                     exc,
                 )
                 return

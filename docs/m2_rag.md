@@ -1,6 +1,6 @@
 # M2 · RAG 知识库：从零复现手册
 
-> 本手册覆盖 Trinity 多 Agent 平台的 RAG 知识库能力（M2）：上传企业文档 → 自动索引 →
+> 本手册覆盖 agent1 多 Agent 平台的 RAG 知识库能力（M2）：上传企业文档 → 自动索引 →
 > HTTP 检索 → Agent 通过 `knowledge_search` 工具引用作答 → 检索质量评测。
 > 全程本地运行：embedding 用 bge-small-zh-v1.5（fastembed/ONNX），**零 API 成本、可断网**。
 

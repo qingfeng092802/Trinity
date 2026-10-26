@@ -86,8 +86,24 @@ async function getJson(url) {
   return res.json();
 }
 
-// Chrome 路径解析：统一由 ./_chrome.cjs 提供（环境变量 -> 各平台常见安装位置）
-const { resolveChrome } = require('./_chrome.cjs');
+function resolveChrome() {
+  const env = process.env.CHROME || process.env.CHROME_PATH;
+  const local = process.env.LOCALAPPDATA || path.join(os.homedir(), 'AppData', 'Local');
+  const candidates = [
+    env,
+    path.join(local, 'Google', 'Chrome', 'Application', 'chrome.exe'),
+    'C:/Program Files/Google/Chrome/Application/chrome.exe',
+    'C:/Program Files (x86)/Google/Chrome/Application/chrome.exe',
+    '/usr/bin/google-chrome',
+    '/usr/bin/chromium',
+    '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome',
+  ].filter(Boolean);
+  const hit = candidates.find((c) => fs.existsSync(c));
+  if (!hit) {
+    throw new Error('找不到 Chrome：设 CHROME=<可执行文件路径>（本机路径不该写进仓库，这里只探常见位置）');
+  }
+  return hit;
+}
 
 /** 侧栏是**图标按钮**（里面没有文字，label 在 aria-label 上），所以只能按 aria-label 点。 */
 async function navTo(page, ariaLabel) {

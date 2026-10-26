@@ -139,7 +139,7 @@ def _start_client(monkeypatch: pytest.MonkeyPatch, recorder: Recorder) -> TestCl
     #   ``sqlite3.OperationalError: table tasks already exists``（抛点在
     #   `storage/db.py` 的 ``Base.metadata.create_all(engine)``），子代理 2/2 撞上、
     #   我 3/3 没撞上 ⇒ 现象真、根因不明。两种可能要靠这一行分开：
-    #   ① 缓存没清干净，engine 指向**共享的生产库**（`data/trinity.db` 里
+    #   ① 缓存没清干净，engine 指向**共享的生产库**（`data/agent_platform.db` 里
     #      `tasks` 表本来就在，①就是这么来的）；② URL 是对的，是同路径两个连接
     #      在 checkfirst 与 CREATE 之间抢跑。断言成立 ⇒ ①被排除，下次再撞那条
     #      ERROR 就只管查②，不必再怀疑 ``reset_settings_cache / reset_api_caches`` 的顺序。

@@ -314,7 +314,7 @@ const LogStream = memo(function LogStream({
      用户是先在结果页把 120 行拉完、再点开日志页签 —— 面板**带着满屏行第一次挂载**，
      而 `prevLen` 初始化成 `rows.length` ⇒ delta = 0 ⇒ 谁都不钉底。
      实测（120 行档，改之前）：scrollTop=0 / max=2592，视口停在 #001（最老那一条），
-     而页脚仍写着「自动滚动已开启」—— 界面承诺的位置与实际滚动位置不一致。
+     而页脚写着「自动滚动已开启」—— 一句做错了事的承诺。
      ⚠️ 必须**推两帧**再钉，不能在 effect 里当场钉：挂载这一帧里虚拟列表的总高还是
      `ROW_ESTIMATE × 条数`，真高要等 `measureElement` 回填。当场钉会被回填夹一次
      （scrollTop 被浏览器夹回新最大值），那一下夹动恰好落进 `handleScroll` 的

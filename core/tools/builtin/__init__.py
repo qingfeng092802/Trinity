@@ -1,4 +1,4 @@
-"""内置工具集：**对外只暴露 3 个**——calculator / knowledge_search / code_exec。
+"""内置工具集：**对外只暴露 4 个**——calculator / knowledge_search / code_exec / sql_query。
 
 每个工具模块只负责定义函数与 :func:`register`，**不在 import 时自动注册**——
 注册时机由调用方决定（:func:`load_builtin_tools` 或自己建独立注册表），
@@ -14,7 +14,15 @@ from __future__ import annotations
 import logging
 from collections.abc import Callable
 
-from core.tools.builtin import calculator, code_exec, extract, file_io, knowledge_search, web_search
+from core.tools.builtin import (
+    calculator,
+    code_exec,
+    extract,
+    file_io,
+    knowledge_search,
+    sql_query,
+    web_search,
+)
 from core.tools.registry import ToolRegistry, ToolSpec, default_registry
 from core.tools.validators import ToolRegistrationError
 
@@ -25,14 +33,17 @@ logger = logging.getLogger(__name__)
 #: **工具面收敛（2026-09-20）**：对外工具面从 6 个收敛到 3 个——
 #: ``calculator``（确定性计算）/ ``knowledge_search``（RAG 检索 + 引用溯源）/
 #: ``code_exec``（受限子进程沙箱，安全边界见 ``code_exec.py`` 的 docstring）。
+#: **v0.2.0（2026-10-25）**：新增只读 ``sql_query``（固定 demo 库的结构化问数）
+#: ⇒ 默认注册集为 4 个。
 #:
 #: ``web_search`` / ``file_io`` / ``extract`` 的**模块保留在仓库里但不再默认注册**：
 #: 它们属于 ``core`` 既有实现，直接删文件会同时打掉覆盖它们的回归测试，代价高于收益。
-#: 收敛通过「不注册」实现——``GET /tools`` 与 Agent 提示词里都只会出现 3 个工具。
+#: 收敛通过「不注册」实现——``GET /tools`` 与 Agent 提示词里都只会出现默认注册的工具。
 BUILTIN_REGISTRARS: tuple[Callable[[ToolRegistry], ToolSpec], ...] = (
     calculator.register,
     knowledge_search.register,
     code_exec.register,
+    sql_query.register,
 )
 
 #: 被收敛下线、但源码仍保留的工具（仅供测试与回溯，不进默认注册表）。
@@ -44,7 +55,7 @@ RETIRED_BUILTIN_REGISTRARS: tuple[Callable[[ToolRegistry], ToolSpec], ...] = (
 
 
 def load_builtin_tools(registry: ToolRegistry | None = None) -> ToolRegistry:
-    """把 3 个内置工具注册进给定注册表（默认全局注册表）。
+    """把默认内置工具（v0.2.0 起 4 个）注册进给定注册表（默认全局注册表）。
 
     幂等：已注册的工具会跳过，重复调用不会抛错。
     注意：本函数**不做** knowledge_search 的服务注入——那由 api 层在
@@ -68,5 +79,6 @@ __all__ = [
     "file_io",
     "knowledge_search",
     "load_builtin_tools",
+    "sql_query",
     "web_search",
 ]

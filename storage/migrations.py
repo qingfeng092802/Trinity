@@ -61,6 +61,20 @@ TASK_EVENT_COST_COLUMNS: tuple[tuple[str, str], ...] = (
     ("price_multiplier", "REAL"),
 )
 
+#: Session Memory v1：tasks 表的会话 id 列。NULL = 该任务不参与会话记忆。
+TASK_SESSION_COLUMNS: tuple[tuple[str, str], ...] = (("session_id", "VARCHAR(64)"),)
+
+#: 会话历史查询索引名与 DDL（session_id + created_at）
+TASK_SESSION_INDEX = "idx_tasks_session_created"
+TASK_SESSION_INDEX_DDL = (
+    "CREATE INDEX IF NOT EXISTS idx_tasks_session_created "
+    "ON tasks (session_id, created_at)"
+)
+
+
+class TaskSessionMigrationError(RuntimeError):
+    """session_id 迁移失败（fail-closed：不带着缺列启动）。"""
+
 #: ``task_events`` 规范 DDL（设计文档 §3.2）。
 #: 与 ``storage.models.TaskEventRecord`` 逐列等价，供迁移脚本与审查比对。
 #: ★ ``event_seq`` 用 ``INTEGER PRIMARY KEY AUTOINCREMENT``（而非裸 rowid）：
@@ -273,14 +287,84 @@ def ensure_task_event_cost_columns(db_path: Path | str | None) -> list[str]:
     return added
 
 
+def ensure_task_session_column(db_path: Path | str | None) -> list[str]:
+    """确保 ``tasks.session_id`` 与 ``(session_id, created_at)`` 索引存在。
+
+    与旧迁移的失败策略刻意不同：这是新代码**必需**的列，缺列后每次提交都会在
+    ``save_task`` 撞 ``no such column``。因此本函数 **fail-closed**——迁移失败直接
+    抛 :class:`TaskSessionMigrationError`，让启动停下并给出明确原因；不做 drop /
+    重建 / 强制刷库。索引已存在但列不对时也按 schema 冲突处理。
+
+    Args:
+        db_path: SQLite 文件路径；``None`` / 文件不存在 / tasks 表尚未建立时返回 ``[]``。
+
+    Returns:
+        本轮真正创建的对象名列表（列名与/或索引名）；已是最新时返回 ``[]``。
+    """
+    if db_path is None:
+        logger.info("当前数据库不是 SQLite，跳过 session_id 迁移")
+        return []
+
+    path = Path(db_path)
+    if not path.is_file():
+        logger.info("数据库文件尚不存在，交给 create_all 建表：%s", path)
+        return []
+
+    created: list[str] = []
+    conn = sqlite3.connect(str(path), timeout=5.0)
+    try:
+        if not _table_exists(conn, TASKS_TABLE):
+            logger.info("tasks 表尚不存在，交给 create_all 建表：%s", path)
+            return []
+        present = _existing_columns(conn, TASKS_TABLE)
+        for column, ddl_type in TASK_SESSION_COLUMNS:
+            if column in present:
+                continue
+            conn.execute(f"ALTER TABLE {TASKS_TABLE} ADD COLUMN {column} {ddl_type}")
+            created.append(column)
+
+        if _index_exists(conn, TASK_SESSION_INDEX):
+            columns = [
+                str(row[2])
+                for row in conn.execute(f"PRAGMA index_info({TASK_SESSION_INDEX})").fetchall()
+            ]
+            if columns != ["session_id", "created_at"]:
+                raise TaskSessionMigrationError(
+                    f"索引 {TASK_SESSION_INDEX} 已存在但列不对：{columns}"
+                    "（期望 ['session_id', 'created_at']）"
+                )
+        else:
+            conn.execute(TASK_SESSION_INDEX_DDL)
+            created.append(TASK_SESSION_INDEX)
+
+        if created:
+            conn.commit()
+            logger.info("已为 tasks 表补 session 记忆结构：%s", "、".join(created))
+        else:
+            logger.debug("tasks.session_id 与索引已是最新，无需变更")
+    except sqlite3.Error as exc:
+        conn.rollback()
+        raise TaskSessionMigrationError(
+            f"session_id 迁移失败（{path}）：{type(exc).__name__}: {exc}"
+        ) from exc
+    finally:
+        conn.close()
+    return created
+
+
 __all__ = [
+    "TASKS_TABLE",
     "TASK_ERROR_COLUMNS",
-    "TASK_EVENT_COST_COLUMNS",
     "TASK_EVENTS_DDL",
     "TASK_EVENTS_INDEX_DDL",
     "TASK_EVENTS_TABLE",
-    "TASKS_TABLE",
+    "TASK_EVENT_COST_COLUMNS",
+    "TASK_SESSION_COLUMNS",
+    "TASK_SESSION_INDEX",
+    "TASK_SESSION_INDEX_DDL",
+    "TaskSessionMigrationError",
     "ensure_task_error_columns",
     "ensure_task_event_cost_columns",
     "ensure_task_events_table",
+    "ensure_task_session_column",
 ]

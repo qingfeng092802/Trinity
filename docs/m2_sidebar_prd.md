@@ -12,12 +12,12 @@
 |---|---|
 | Language | 中文 |
 | Programming Language | 前端 **零构建原生 JS（ES2020+，无 npm、无打包）**，由 FastAPI `app.mount("/console", StaticFiles(directory="web", html=True))` 托管；后端 **FastAPI + SQLite**（本轮预计只新增 1 个只读端点） |
-| Project Name | `trinity_m2_sidebar` |
+| Project Name | `agent_platform_m2_sidebar` |
 | 文档类型 | 简单 PRD |
 | 涉及文件 | `web/index.html`（127 行）、`web/app.js`（539 行）、`web/style.css`；后端视情况新增 `GET /tools` |
 | 事实基线 | 以下所有「已实测确认」标记的内容，均来自 `openapi.json` 全量路由（13 条 path）+ 真实调用返回，非推测 |
 
-### 原始需求复述（原话）
+### 原始需求复述（the user，原话）
 
 > 「**侧边栏接入前端，主页面是空白的**」+ 一张截图。
 
@@ -335,7 +335,7 @@
 
 ```
 ┌─────────────────────────┐
-│ Trinity                 │
+│ Agent Platform          │
 ├─────────────────────────┤
 │ 总览                    │
 │  📊 Dashboard      [■]  │  ← 可点（active 高亮）
@@ -555,7 +555,7 @@
 
 ---
 
-## 7. 已知开放问题与后续计划
+## 7. 待确认问题（需the user / 架构师拍板）
 
 | # | 问题 | 备选方案 | 我的默认建议 |
 |---|---|---|---|
@@ -594,5 +594,5 @@
 | 类别 | 内容 |
 |---|---|
 | **已实测确认（可直接当真）** | 13 条 API path；`/knowledge/overview` 返回体字段与取值；`/knowledge/documents` 返回 `{"items":[],"total":0}`；`/knowledge/search` 请求体与 `SearchHitView` 字段；`/eval` 返回 `{"items":[],"total":0,"limit":50,"offset":0}`；`/stats/dashboard` 返回 200 且含 14 天 `daily`；`/tasks?limit=10` 返回 200；`POST /tools/{name}/invoke` 的 `{"args":{...}}` 契约（摊平 422）；**`GET /tools` = 404（不存在）**；工具注册表内确有 6 个工具及其 `danger_level`/`timeout`/`retry`/`parameters`；`web/app.js` 的行号与代码逻辑（第 158/175-177/181/186/191/211-215/498 行）；`index.html` 中 8 个 disabled 项**无 `data-view`** |
-| **静态分析结论（已在实现中验证）** | ①「副标题卡在加载中」的直接机制是 L175-177 渲染函数无 try/catch；②disabled 项完全无点击事件是因为 L498 选择器排除了它们。二者均已定位到具体代码行：加固兜底与修复渲染 bug 两项一并实施 |
-| **已核对项** | `daily` 数组长度为 14（依据 M1 口径与返回体核对）；截图中的 8 个 badge 文案与 `index.html` 一致（依据文件内容推断截图即该文件渲染结果）；「空库」指知识库为空（`/tasks` 实测有 8 条记录，两者统计对象不同） |
+| **读代码推断（高置信，非运行时实测）** | ①「副标题卡在加载中」的直接机制是 L175-177 渲染函数无 try/catch；②disabled 项完全无点击事件是因为 L498 选择器排除了它们。二者均由静态阅读代码得出，**未在浏览器中断点验证** —— 建议架构师在复现时先用 DevTools 确认异常的确切来源，再决定是加固兜底还是同时修具体渲染 bug |
+| **推测 / 待确认（不可当真）** | `daily` 数组长度为 14（依据 M1 口径与截图「近 14 天」文案推断，**未逐帧核对返回体**）；截图中的 8 个 badge 文案与 `index.html` 一致（依据文件内容推断截图即该文件渲染结果）；「空库」为当前真实状态（依据 `overview`/`eval` 返回空推断，但 `/tasks` 实测有 8 条记录，两者口径差异需架构师确认） |

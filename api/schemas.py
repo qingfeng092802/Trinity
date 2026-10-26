@@ -16,7 +16,7 @@ from typing import Any, Literal
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
-from api.constants import MAX_TASK_CHARS, TASK_ID_PATTERN
+from api.constants import MAX_TASK_CHARS, SESSION_ID_PATTERN, TASK_ID_PATTERN
 from core.llm.pricing import CN_TZ, now
 
 Difficulty = Literal["easy", "medium", "hard"]
@@ -26,7 +26,7 @@ Difficulty = Literal["easy", "medium", "hard"]
 #: （与 :class:`ToolSpecView.danger_level` 同一纪律）。与
 #: ``core.tools.builtin.BUILTIN_REGISTRARS`` 的注册集保持一致。
 KNOWN_TOOL_NAMES: frozenset[str] = frozenset(
-    {"calculator", "knowledge_search", "code_exec"}
+    {"calculator", "knowledge_search", "code_exec", "sql_query"}
 )
 
 
@@ -117,19 +117,27 @@ class TaskSubmitRequest(BaseModel):
         pattern=TASK_ID_PATTERN,
         description="客户端指定 id；不传则由服务端生成 task-<hex12>",
     )
+    session_id: str | None = Field(
+        default=None,
+        pattern=SESSION_ID_PATTERN,
+        description=(
+            "多轮会话 id（可选，1..64 位字母/数字/下划线/连字符）；同一 session_id 的"
+            "后续任务会带入最近 3 轮已完成问答。不传 = 不参与会话记忆"
+        ),
+    )
     use_tools: bool | None = Field(
         default=None,
         description=(
             "工具装配开关（三态，向后兼容）：不传（null）= 全量装配（现状行为）；"
-            "true = 全量装配；false = **低风险安全子集**（calculator/knowledge_search，"
-            "排除高危 code_exec），不再等同「零工具」"
+            "true = 全量装配；false = **低风险安全子集**（calculator/knowledge_search/"
+            "sql_query，排除高危 code_exec），不再等同「零工具」"
         ),
     )
     enabled_tools: list[str] | None = Field(
         default=None,
         description=(
             "精确工具白名单（最高优先级，覆盖 use_tools）；元素须为内置工具名之一："
-            "calculator/knowledge_search/code_exec"
+            "calculator/knowledge_search/code_exec/sql_query"
         ),
     )
     max_iterations: int | None = Field(
@@ -239,6 +247,7 @@ class TaskAcceptedResponse(BaseModel):
     """``POST /tasks`` 的 201 响应。"""
 
     task_id: str = Field(description="任务 id")
+    session_id: str | None = Field(default=None, description="多轮会话 id；未传=null")
     status: Literal["queued", "running"] = Field(description="受理后的状态")
     queue_position: int = Field(description="排队位置，从 1 开始；已开跑为 0")
     submitted_at: datetime = Field(description="受理时间（北京时间 +08:00）")
@@ -405,6 +414,7 @@ class TaskView(BaseModel):
 
     task_id: str
     task: str
+    session_id: str | None = None
     status: str
     iterations: int = 0
     score: int | None = None
@@ -962,7 +972,9 @@ class HealthResponse(BaseModel):
     status: Literal["healthy", "degraded", "unhealthy"]
     version: str
     uptime_seconds: int = 0
-    checks: dict[str, CheckResult] = Field(description="api / database / redis / llm / queue / rag")
+    checks: dict[str, CheckResult] = Field(
+        description="api / database / redis / llm / queue / rag / sse"
+    )
 
 
 # --------------------------------------------------------------------------- #

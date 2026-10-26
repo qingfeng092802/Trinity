@@ -138,7 +138,7 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     parser.add_argument("--no-tools", action="store_true", help="不接入工具层（纯推理模式）")
     parser.add_argument("--max-iterations", type=int, default=None, help="覆盖最大迭代轮数")
     parser.add_argument("--threshold", type=int, default=None, help="覆盖评审通过线")
-    parser.add_argument("--db", default=None, help="Trace 落库路径（默认 data/trinity.db）")
+    parser.add_argument("--db", default=None, help="Trace 落库路径（默认 data/agent_platform.db）")
     parser.add_argument("--no-db", action="store_true", help="不写业务表（只看报表）")
     parser.add_argument(
         "--allow-peak",

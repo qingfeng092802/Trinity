@@ -1,5 +1,5 @@
 # ============================================================================
-# Trinity 运行镜像
+# agent_platform 运行镜像
 #
 # 为什么是 python:3.12-slim 而不是 alpine
 #   - 本项目依赖 numpy / tiktoken / sqlite-vec 等带原生扩展的包，
@@ -13,10 +13,10 @@
 #   - 只装 CPU 版依赖，不装 dev / ui extra。
 #
 # 构建:
-#   docker build -t trinity:latest .
+#   docker build -t agent-platform:latest .
 # 运行（推荐用 compose，见 docker-compose.yml）:
-#   docker run --rm -p 8000:8000 --env-file .env -v trinity_data:/app/data \
-#              trinity:latest
+#   docker run --rm -p 8000:8000 --env-file .env -v agent_data:/app/data \
+#              agent-platform:latest
 # ============================================================================
 
 FROM python:3.12-slim
@@ -81,7 +81,7 @@ RUN mkdir -p /app/data/workspace /app/data/knowledge/files /app/data/logs \
 # PYTHONPATH=/app 是上面的前提：没有它 `uvicorn api.main:app` 找不到 api 包。
 ENV API_HOST=0.0.0.0 \
     API_PORT=8000 \
-    DB_URL=sqlite:///data/trinity.db \
+    DB_URL=sqlite:///data/agent_platform.db \
     REDIS_URL=redis://redis:6379/0 \
     PYTHONPATH=/app
 

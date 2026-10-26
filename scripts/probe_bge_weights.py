@@ -1,12 +1,12 @@
 #!/usr/bin/env python
-"""探测本机是否已有 BAAI/bge-small-zh-v1.5 权重（其他项目遗留或已下载缓存等）。
+"""探测本机是否已有 BAAI/bge-small-zh-v1.5 权重（RAGFlow Pro 遗留等）。
 
 探测顺序（m2_design.md §1.4，**只探测不下载**）：
     ① 环境变量 EMBEDDING_MODEL_PATH / .env 已固化值
     ② 常见根目录扫描：<USER_HOME>\\、C:\\、D:\\、E:\\（存在才扫）下
        目录名匹配 *ragflow* / *bge-small-zh* / models--BAAI--bge-small-zh-v1.5
        （HF cache 形式），并校验 config.json 存在判定为有效权重
-    ③ 无命中 → 输出 hf-mirror.com 下载命令（**不执行**，需人工确认后手动跑）
+    ③ 无命中 → 输出 hf-mirror.com 下载命令（**不执行**，等 team-lead 确认）
 
 命中后把路径回填 .env 的 EMBEDDING_MODEL_PATH（带注释标记）。
 
@@ -36,18 +36,12 @@ NAME_PATTERNS = (
     re.compile(r"ragflow", re.IGNORECASE),
 )
 
-#: 扫描根目录：默认取本文件所在盘（不硬编码任何具体盘符），可用环境变量
-#: BGE_SCAN_ROOTS 覆盖（用 os.pathsep 分隔；Windows 为 `;`、POSIX 为 `:`）。
-#: 不扫用户主目录与系统盘，避免触碰 .ssh / 应用凭据等敏感目录。
-#: 存在才扫；每根最多下探 6 层。
-def _default_scan_roots() -> tuple[Path, ...]:
-    override = os.environ.get("BGE_SCAN_ROOTS", "").strip()
-    if override:
-        return tuple(Path(p) for p in override.split(os.pathsep) if p.strip())
-    return (Path(Path(__file__).resolve().anchor),)
-
-
-SCAN_ROOTS = _default_scan_roots()
+#: 扫描根目录：**仅数据盘**（任务书指定 D:\ 为主；不扫用户主目录与系统盘，
+#: 避免触碰 .ssh / 应用凭据等敏感目录）。存在才扫；每根最多下探 6 层。
+SCAN_ROOTS = (
+    Path("D:/"),
+    Path("E:/"),
+)
 MAX_DEPTH = 6
 
 #: 无论多深都跳过的目录名（敏感 / 无关，防御性裁剪）
@@ -141,7 +135,7 @@ def find_weights() -> list[Path]:
 
 
 def suggest_download() -> str:
-    """输出下载命令（不执行——需人工确认后手动跑）。"""
+    """输出下载命令（不执行——等 team-lead/用户确认后手动跑）。"""
     lines = [
         "未在本机发现 bge-small-zh-v1.5 权重。下载命令（确认后执行，约 100MB）：",
         "  PowerShell:",

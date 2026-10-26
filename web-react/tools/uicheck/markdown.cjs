@@ -7,8 +7,7 @@ const { chromium } = require('playwright-core');
 const fs = require('fs');
 const path = require('path');
 
-// Chrome 路径：统一由 ./_chrome.cjs 解析（优先环境变量，回退各平台默认安装位置）
-const CHROME = require('./_chrome.cjs').resolveChrome();
+const CHROME = 'process.env.CHROME || 'C:/Program Files/Google/Chrome/Application/chrome.exe'';
 const BASE = process.env.BASE_URL || 'http://127.0.0.1:5173';
 const OUT = process.env.OUT_DIR || path.resolve(__dirname, 'shots/markdown');
 const { installMocks } = require('./mocks.cjs');
@@ -218,7 +217,7 @@ async function themePass(browser, scheme, label) {
     locale: 'zh-CN',
   });
   await ctx.addInitScript((s) => {
-    localStorage.setItem('trinity-console.theme', s);
+    localStorage.setItem('agent1-console.theme', s);
   }, scheme);
   const page = await ctx.newPage();
   const errors = [];
@@ -441,7 +440,7 @@ async function narrowPass(browser) {
     colorScheme: 'light',
     locale: 'zh-CN',
   });
-  await ctx.addInitScript(() => localStorage.setItem('trinity-console.theme', 'light'));
+  await ctx.addInitScript(() => localStorage.setItem('agent1-console.theme', 'light'));
   const page = await ctx.newPage();
   const errors = [];
   page.on('pageerror', (e) => errors.push(e.message));

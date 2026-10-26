@@ -10,7 +10,7 @@
        print(ks._render([SearchHit(chunk_id='c12',score=0.83,bm25_score=0.71,vector_score=0.92, \
        document_id='d1',document_name='anfangjiankong.md',chunk_seq=12,start_char=0,end_char=512,text='…')],200))"
 
-   另一份（认不出来的那条）是从 data/trinity.db 的 task_events 里读的真实 observation。 */
+   另一份（认不出来的那条）是从 data/agent_platform.db 的 task_events 里读的真实 observation。 */
 const { buildCitations, parseCitations } = require('./citations.cjs');
 
 let pass = 0;

@@ -119,7 +119,7 @@ class Settings(BaseSettings):
 
     # -------------------------------------------------------------- 存储 ----
     db_url: str = Field(
-        default="sqlite:///data/trinity.db", description="SQLAlchemy 连接串"
+        default="sqlite:///data/agent_platform.db", description="SQLAlchemy 连接串"
     )
     redis_url: str = Field(
         default="redis://127.0.0.1:6379/0", description="Redis 连接串（不可用自动降级内存）"
@@ -192,8 +192,9 @@ class Settings(BaseSettings):
         le=2000,
         description=(
             "chunk 窗口（token 口径，设计文档默认 500）。"
-            "注意：设计文档 §7.1 要求『chunk_size 校验 ≤480』与默认 500 冲突："
-            "此处按默认 500 落地，480 的单 chunk 有效上限由 splitter 截断保证（T02）。"
+            "注意：设计文档 §7.1 又要求『chunk_size 校验 ≤480』与默认 500 冲突，"
+            "此处按默认 500 落地；480 的单 chunk 有效上限由 splitter 截断保证（T02），"
+            "已上报 team-lead 确认口径"
         ),
     )
     chunk_overlap: int = Field(

@@ -204,12 +204,25 @@ export default function TraceReplayPage() {
   const stats = useMemo(() => {
     const failed = shown.filter(isBad).length;
     const tokens = shown.reduce((s, e) => s + (e.tokens_in ?? 0) + (e.tokens_out ?? 0), 0);
-    const ms = shown.reduce((s, e) => s + (e.latency_ms ?? 0), 0);
+    // H-1：总耗时只数 node_end 的节点 span（它已经包含节点内的 llm_call/tool_call）。
+    // 必须用未筛选的 events：筛选只影响计数，不能把总耗时变成“筛出来的那部分耗时”。
+    const nodeSpans = events.filter(
+      (e) => e.event_type === 'node_end' && typeof e.latency_ms === 'number',
+    );
+    const totalMs = nodeSpans.reduce((s, e) => s + (e.latency_ms ?? 0), 0);
     const tools = shown.filter((e) => !!e.tool_name).length;
     const perNode: Record<AgentNode, number> = { planner: 0, executor: 0, reviewer: 0, system: 0 };
     for (const e of shown) perNode[nodeOf(e)] += 1;
-    return { failed, tokens, ms, tools, perNode, successRate: shown.length ? (shown.length - failed) / shown.length : null };
-  }, [shown]);
+    return {
+      failed,
+      tokens,
+      totalMs,
+      nodeSpanCount: nodeSpans.length,
+      tools,
+      perNode,
+      successRate: shown.length ? (shown.length - failed) / shown.length : null,
+    };
+  }, [shown, events]);
 
   const filtered = shown.length !== events.length;
 
@@ -399,8 +412,12 @@ export default function TraceReplayPage() {
                   <MetricTile
                     label="总耗时"
                     icon={<ClockCircleOutlined />}
-                    value={fmtDuration(stats.ms)}
-                    hint={shown.length ? `平均 ${fmtDuration(stats.ms / shown.length)} / 步` : undefined}
+                    value={stats.nodeSpanCount > 0 ? fmtDuration(stats.totalMs) : '—'}
+                    hint={
+                      stats.nodeSpanCount > 0
+                        ? `平均 ${fmtDuration(stats.totalMs / stats.nodeSpanCount)} / 步`
+                        : '该轨迹没有 node_end'
+                    }
                   />
                 </div>
 

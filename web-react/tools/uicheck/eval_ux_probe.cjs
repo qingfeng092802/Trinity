@@ -7,7 +7,7 @@
  *
  * 为什么不并进 X 趟：X 趟走的是 mock（不打真后端），这个走的是**真后端 + 真报告 JSON**；
  * 而且它是普查（全页所有表 / 所有文本节点），塞进正式趟会让每次全量都多跑一趟普查。
- * ⇒ 后续：EV-04 / EV-05 修完后，把"改完必须不复发"的那几个数并入正式趟次，本脚本即可退役。
+ * ⇒ 挂账：等 EV-04 / EV-05 修完，把"改完必须不复发"的那几个数抽成正式趟，这个脚本退役。
  *
  * 量三件事：
  *   1) 窄屏适配：文档横向溢出、表格里被藏掉的列、底部标签栏与左侧图标栏是否同时出现；
@@ -20,8 +20,7 @@
  */
 const { chromium } = require('playwright-core');
 
-// Chrome 路径：统一由 ./_chrome.cjs 解析（优先环境变量，回退各平台默认安装位置）
-const CHROME = require('./_chrome.cjs').resolveChrome();
+const CHROME = 'process.env.CHROME || 'C:/Program Files/Google/Chrome/Application/chrome.exe'';
 const BASE = process.env.BASE_URL || 'http://127.0.0.1:5173';
 const OUT = __dirname + '/final/eval-review';
 const results = [];
@@ -130,7 +129,7 @@ const SWEEP = () => {
 
 async function visit(browser, { path, vw, vh, theme, tag }) {
   const ctx = await browser.newContext({ viewport: { width: vw, height: vh }, colorScheme: theme, locale: 'zh-CN' });
-  await ctx.addInitScript((t) => localStorage.setItem('trinity-console.theme', t), theme);
+  await ctx.addInitScript((t) => localStorage.setItem('agent1-console.theme', t), theme);
   const page = await ctx.newPage();
   const consoleErr = [];
   const failed = [];
@@ -177,7 +176,7 @@ async function visit(browser, { path, vw, vh, theme, tag }) {
   }
   /* 抽屉里的可 Tab 控件：窄屏抽屉收起时是否仍可被 Tab 走到 */
   const ctx = await browser.newContext({ viewport: { width: 724, height: 900 }, colorScheme: 'light' });
-  await ctx.addInitScript(() => localStorage.setItem('trinity-console.theme', 'light'));
+  await ctx.addInitScript(() => localStorage.setItem('agent1-console.theme', 'light'));
   const page = await ctx.newPage();
   await page.goto(BASE + '/tasks', { waitUntil: 'networkidle' });
   await page.waitForTimeout(800);

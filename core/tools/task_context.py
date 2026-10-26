@@ -40,7 +40,7 @@ TOP_K_HARD_MIN = 1
 TOP_K_HARD_MAX = 20
 
 #: 本任务用户配的检索上限；``None`` = 用户没配（不限制模型自己选的条数）。
-_task_top_k: ContextVar[int | None] = ContextVar("trinity.task_rag_top_k", default=None)
+_task_top_k: ContextVar[int | None] = ContextVar("agent1.task_rag_top_k", default=None)
 
 
 def default_top_k() -> int:

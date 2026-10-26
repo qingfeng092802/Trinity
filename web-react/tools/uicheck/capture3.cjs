@@ -3,11 +3,9 @@ const { chromium } = require('playwright-core');
 const fs = require('fs');
 const path = require('path');
 
-// Chrome 路径：统一由 ./_chrome.cjs 解析（优先环境变量，回退各平台默认安装位置）
-const CHROME = require('./_chrome.cjs').resolveChrome();
+const CHROME = 'process.env.CHROME || 'C:/Program Files/Google/Chrome/Application/chrome.exe'';
 const BASE = process.env.BASE_URL || 'http://127.0.0.1:5173';
-// 截图输出目录：优先读环境变量；回退到脚本同目录下的相对路径
-const OUT = process.env.OUT_DIR || path.join(__dirname, 'shots2');
+const OUT = process.env.OUT_DIR || 'D:/WB/2026-09-21-23-02-06/agent1/web-react/tools/uicheck/shots2';
 const { installMocks, TASK_ID } = require('./mocks.cjs');
 
 async function run() {

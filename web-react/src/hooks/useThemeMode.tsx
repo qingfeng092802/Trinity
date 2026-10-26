@@ -4,10 +4,7 @@ import type { ReactNode } from 'react';
 import { applyThemeVars, systemPrefersDark } from '../theme';
 import type { ThemeMode } from '../theme';
 
-const STORAGE_KEY = 'trinity-console.theme';
-/** 旧键只在**读取**时兜底一次，写入一律用新键，
- *  这样升级上来的用户不会丢掉已选的明暗主题。 */
-const LEGACY_STORAGE_KEY = 'agent1-console.theme';
+const STORAGE_KEY = 'agent1-console.theme';
 
 interface ThemeModeContextValue {
   mode: ThemeMode;
@@ -23,8 +20,7 @@ const ThemeModeContext = createContext<ThemeModeContextValue | null>(null);
  */
 export function resolveInitialMode(): ThemeMode {
   try {
-    const saved =
-      localStorage.getItem(STORAGE_KEY) ?? localStorage.getItem(LEGACY_STORAGE_KEY);
+    const saved = localStorage.getItem(STORAGE_KEY);
     if (saved === 'light' || saved === 'dark') return saved;
   } catch {
     // 隐私模式下 localStorage 可能抛异常，忽略即可

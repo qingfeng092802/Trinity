@@ -152,6 +152,8 @@ class QueueItem:
     submitted_at: float
     cancel: CancelToken
     enabled_tools: list[str] | None = None
+    #: 多轮会话 id（P2 Session Memory v1）；None = 不参与会话记忆
+    session_id: str | None = None
     #: 成本预算上限（元）。``None`` = 不设限。只在**节点边界**判（见
     #: :meth:`TaskWorker._limit_trip` 第 1 条口径），所以它是软上限。
     max_cost_cny: float | None = None

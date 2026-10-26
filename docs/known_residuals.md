@@ -1,20 +1,18 @@
 # 已知边界与残留（公开版）
 
-这份清单是**已知的边界条件与当前取舍**：每条都记录了现象、可复算的判据、影响评估，
+这份清单收的是**查实了、但今天刻意没修**的事。它不是 TODO：每条都给"怎么自己复算"的判据，
 以及"什么时候才值得动"的关闭条件。级别沿用 P0/P1/P2（P0 = 影响能不能对外部署，P1 = 会让人对
 产品事实产生误判，P2 = 口径与工程卫生）。
 
-> **适用前提**：本项目面向**单机 / 内网**场景设计，默认只监听 `127.0.0.1`；
-> 下文 A 组的三条 P0 均在这一前提下评估。公网部署前请先完成 README「部署到公网前」一节
-> 列出的加固项（改默认口令 / HTTPS 反代 / 限制 `config/` 与 `.solve_cache/` 访问）。
+四点交代：
 
-三点交代：
-
-- **每条的判据都在本工作树实测过**（2026-10-07）。行号会随改动漂移，所以能用 grep / 命令复算的
+- **每条的判据都在本工作树实测过**（2026-10-07；v0.2.0 的关闭申报另有 2026-10-25 读数）。行号会随改动漂移，所以能用 grep / 命令复算的
   一律给命令，别信这里的行号本身。
 - **端口**：文中 curl 示例一律写 `:8000`（`config.py` 的 `api_port` 默认值）。如果你按 README 的
   本地链路起服务（`start.bat` 与 `uvicorn` 示例都是 **8001**，vite 代理也指 8001），
   把示例里的 8000 换成 8001 —— 这些判据读的是「回 2xx 还是 401」，不是端口号本身。
+- 内部挂账比这份长得多，未收录的主要是两类：**只在作者开发机上成立的环境注记**
+  （本机解释器路径、被应用控制策略拦掉的构建产物等），以及**已经在本轮之后关闭的条目**。
 - 文中「已关闭」的条目**不删**，留作证据链（改口不删账）。
 
 ---
@@ -119,15 +117,33 @@ Windows 上得引 Job Object / AppContainer —— 那不是"一行顺手"的量
 **影响**：后端仍能产出的能力，界面这一侧看不到；文档里提到"逐题 diff"时要说明它今天只在代码层。
 **关闭条件**：要么在控制台补一屏两臂对比，要么把这两个函数连同测试一起摘掉（别留"看起来还在"的读取端）。
 
-### B-4 知识库页没有检索测试（P2）
+### B-4 知识库页没有检索测试（P2，**已关闭 2026-10-26**）
 
 **现象**：知识库页提供上传、解析/索引状态机进度、文档与 chunk 读数，**没有**检索输入框；
-`GET /knowledge/search` 只在 API 侧。
-**判据**：`grep -rn "knowledge/search" web-react/src` ⇒ **0**。
+`POST /knowledge/search` 只在 API 侧（修复前）。
+**判据**：修复前 `grep -rn "knowledge/search" web-react/src` ⇒ **0**；v0.2.0 起该命令有调用。
 **影响**：想验一条检索结果得开 curl 或让 Agent 走 `knowledge_search` 工具。README 的功能表已把
 这句话写进去，免得人来者页面上找搜索框。
 **关闭条件**：在知识库页加一个"试检索"小面板（复用 `/knowledge/search`，把 `bm25_score` /
 `vector_score` / `score` 三列都摆出来），顺带能演示权重对排序的实际影响。
+
+#### 关闭申报（2026-10-25，复核者确认）
+
+- **结论**：已修复
+- **修改文件**：`web-react/src/pages/KnowledgePage.tsx`、`web-react/src/api/client.ts`、`web-react/src/types.ts`、`web-react/src/index.css`、`web-react/tools/uicheck/kbSearch.cjs`；`README.md` 与本节同步改为 `POST /knowledge/search`。
+- **复跑命令**：
+
+```bash
+cd web-react
+npm run typecheck
+npm run build
+NODE_PATH='C:\Users\15539\.workbuddy\binaries\node\workspace\node_modules' \
+  node tools/uicheck/kbSearch.cjs
+```
+
+- **复跑读数（2026-10-25）**：真实检索命中 **5** 条；首条含 `BM25 1.0000` / `向量 1.0000` / `综合 1.0000`；网络请求只有 `POST /api/knowledge/search`，无 GET；空库桩返回 `200 + hits: []` 时页面显示“库为空”；409 `fingerprint_mismatch` 桩显示“需要全量重索引”。
+- **失败路径/边界用例**：空库不报错；409 走现有 `ApiFetchError` 文案；检索只发 POST；`top_k` 选择器 1~20（默认 5）。
+- **复核**：复核者确认（2026-10-26）。
 
 ---
 
@@ -344,24 +360,36 @@ python -m pytest tests/integration -o addopts= -q --collect-only | tail -1 # 243
 **复算命令 + 当前读数 + "截至 <日期>"**，且三样与改动它的那一笔 commit 同签。
 **已按此落**：README「测试」一节给的是命令 + 读数 + 日期，30 秒摘要那行改成引用它而不是重抄一份数。
 
-### G-5 版本号有多个手写位（P2，**已关闭 2026-10-07，按关闭条件②**）
+### G-5 版本号有四个手写位（P2，**已关闭 2026-10-26**）
 
-**现象**：`pyproject.toml` 的 `version` 与 `api/__init__.py` 的 `__version__` 是两份手写的
-同一数，没有单一真源。**这条隐患在 v0.2.0 发布时真的发生了**：只改了 `pyproject.toml`，
-`api/__init__.py` / `core/__init__.py` / `web-react/package.json` 三处仍停在 `0.1.0`，
-于是包说 0.2.0、`/openapi.json` 的 `info.version` 还说 0.1.0 —— 与本条原先的预判逐字一致。
-**判据**：`grep -n '__version__' api/__init__.py` 是字面量（不是
-`importlib.metadata.version(...)`）；而本机的 `python -m pip show trinity` /
-`importlib.metadata.version("trinity")` 在未 `pip install -e` 的解释器里
+**现象**：`pyproject.toml` 的 `version`、`api/__init__.py` 的 `__version__`、
+`core/__init__.py` 的 `__version__` 与 `web-react/package.json` 的 `version`
+是四份手写的同一数，没有单一真源。今天都为 `0.2.0`，改版本时漏一处就会表现为
+"包说 0.2.1、`/openapi.json` 的 `info.version` 还说 0.2.0"。
+**判据**：`grep -n '__version__' api/__init__.py core/__init__.py` 是字面量赋值（不是
+`importlib.metadata.version(...)`）；而本机的 `python -m pip show agent-platform` /
+`importlib.metadata.version("agent-platform")` 在未 `pip install -e` 的解释器里
 **PackageNotFoundError**（⇒ 也不能简单把 metadata 当唯一真源，它要求包已安装）。
-**影响**：CI 与测试都不检查版本一致性，所以这个漂移是静默的。
+**影响**：CI 与测试都不检查版本一致性时，这个漂移是静默的。
 **关闭条件**：二选一 ——①`api/__init__.py` 改成 `try: importlib.metadata` /
 `except PackageNotFoundError: __version__ = "0.0.0+unknown"` 并让 `pyproject` 保持唯一手写位；
-②留两份但加一条用例断言两者相等（最便宜，且不改变"未安装也能跑"的现状）。
-**已按此落**（取②）：四处手写位统一到 `0.2.0`，并新增
-`tests/unit/test_version_consistency.py`，断言 `pyproject.toml` / `api/__init__.py` /
-`core/__init__.py` / `web-react/package.json` 四者相等 —— 漏改一处即变红，不再静默。
-README「版本与发布」一节同步改写为四处清单并指向该用例。
+②保留手写位但加一条用例断言**所有位置**相等（当前为四个手写位 +
+`web-react/package-lock.json` 的根级/`packages[""]` 镜像；最便宜，且不改变"未安装也能跑"的现状）。
+
+**口径更正（2026-10-25，v0.2.0）**：手写位实际是 **3 个**——`core/__init__.py:3` 还有一份
+`__version__`（旧读数漏了它）。**2026-10-26 补充**：`web-react/package.json` 也是手写位，
+合计 **4 个**；`web-react/package-lock.json` 的根级与 `packages[""]` 是生成镜像。
+
+**关闭申报（2026-10-26，复核者确认）**
+
+- **结论**：采用关闭条件 ② 的扩展版：**四个手写位 + lock 镜像**。
+- **改动**：新增 `tests/unit/test_version_consistency.py`（3 条）；`web-react/package.json`
+  与 `package-lock.json` 的根级/`packages[""]` 同步为 `0.2.0`；README 版本段同步为四个手写位。
+- **证据（2026-10-26 本机）**：`pytest tests/unit/test_version_consistency.py -o addopts= -q`
+  → **3 passed**（0.04 s）；`pytest tests/integration/test_api_health.py -o addopts= -q`
+  → **7 passed**（8.08 s）；`npm run typecheck` → **0 error**；全量
+  `pytest tests -o addopts= -q` → **1,095 passed**（87.82 s，辅助）。
+- **复核**：复核者确认（2026-10-26）。
 
 ---
 
@@ -386,7 +414,7 @@ grep -c "^\s*run:" .github/workflows/ci.yml   # 2（一条装依赖、一条跑�
 
 ---
 
-### G-7 「从头订阅」的 SSE 流其实不重放已发布事件（P1，**未关闭**）
+### G-7 「从头订阅」的 SSE 流其实不重放已发布事件（P1，**已关闭 2026-10-26**）
 
 **现象**：`tests/integration/test_api_stream.py::test_stream_full_sequence` 的 docstring 写着
 "从头订阅：snapshot → node×N → done"，但事件总线的 `subscribe()` 只是新建一个空队列
@@ -409,6 +437,47 @@ grep -c "^\s*run:" .github/workflows/ci.yml   # 2（一条装依赖、一条跑�
 ② 语义承认"从订阅时刻起"：把用例的 `>= 2` 改成断言"终态必到 + 收到的帧单调递增"，
 并在文档与 docstring 里把这句写进契约。② 便宜且不碰生产代码，① 才是用户以为的那件事。
 
+**关闭申报（2026-10-25，复核者确认；按方案 B 收口）**
+
+- **结论**：按方案 B 收口 —— 运行中任务订阅时补发内存历史；**已终态任务只保证
+  `snapshot + done`，不保证 node 历史**（完整轨迹走 `/trace`）。
+- **方案 B 契约**：终态快路径是既有 P0-6.3 契约，改成整段回放会改变 UI 与 `/trace`
+  对账的去重语义；本轮不扩大生产代码改动，只把契约显式化并用确定性用例钉住。
+- **改动**：
+  - `api/events.py`：每 topic 一份有界历史 `deque(maxlen=SUBSCRIBE_QUEUE_SIZE)`；
+    `subscribe(task_id, last_event_id=...)` 先补发、再挂队列 —— 两者与 `_fanout` 同在 loop 线程且
+    中间无 `await`，接缝原子（不漏帧、不双发）；`_fanout` 对队列满计数 `dropped_queue_full`；
+    `publish()` 未绑定 loop 时计数并**首条 WARNING**（不再静默）；`stats()` 暴露 6 个读数。
+  - `api/routes/tasks.py`：读取 `Last-Event-ID`，订阅时跳过 `seq <= last_event_id` 的帧；
+    非法/负值按"没有游标"处理（宁可重放，不静默吞帧）。
+  - `api/routes/health.py`：新增 `checks.sse`，输出 `subscriber_topics / subscribers / history_tasks /
+    dropped_without_loop / dropped_loop_closed / dropped_queue_full` —— `_dropped_without_loop` 有了出口。
+  - 新增 `tests/unit/test_event_bus_replay.py`；`tests/integration/test_api_stream.py` 加
+    **fresh-subscribe 补发**（预置 1..4+done，断言 `[1,2,3,4,5]`）、
+    **Last-Event-ID 重连跳过**、以及**先终态再订阅**的确定性用例
+    `test_terminal_before_subscribe_returns_snapshot_and_done_only`；
+    `tests/integration/test_api_health.py` 加出口用例（真的制造一次未绑 loop 的发布，断言读数为 1）。
+- **证据（2026-10-25 本机，Python 3.14.6 venv）**：
+  - **确定性单跑**（方案 B 的核心判据）：
+    `pytest "tests/integration/test_api_stream.py::test_terminal_before_subscribe_returns_snapshot_and_done_only" -o addopts= -q`
+    → **1 passed in 1.76 s**（先 `poll_terminal` 再建流，断言恰好 `["snapshot","done"]`、无 node 帧）；
+  - `pytest tests/unit/test_event_bus_replay.py -o addopts= -q` → **5 passed**
+    （先 publish 2 帧再 subscribe 的确定性用例连跑 20 次，均得到 `[1, 2]`）；
+  - `pytest tests/integration/test_api_stream.py tests/integration/test_api_health.py -o addopts= -q`
+    → **22 passed**（含 fresh-subscribe 全量回放、`Last-Event-ID: 2` 时只回放 `[3,4,5]`、
+    非法头不 500、终态只回两帧）；
+  - `test_stream_full_sequence` 连跑 20 次：`pass=20 fail=0` —— **仅作辅助，不代替上面的确定性断言**；
+  - 全量 `pytest tests -o addopts= -q` → **1,092 passed / 0 skipped / 0 failed / 0 error**（98.35 s）。
+- **边界与用例口径（不写成"无损"）**：
+  - 只补发**本进程内存里仍保留**的帧：每任务最多 256 帧、最后一次发布后 60s；进程重启不补发；
+  - **终态任务走快路径，只发首屏 `snapshot` + 终态补帧，不重放 node 历史**；要完整回放请查 `/trace`
+    （这就是方案 B 的显式契约）；
+  - `test_stream_full_sequence` 用「慢任务」保证建流发生在运行中；run-time 补发语义由
+    fresh-subscribe / 重连两条预置历史用例确定性覆盖；
+  - 同一任务的 `seq` 由唯一 worker 的 `seq_box` 发号、严格递增，故 `Last-Event-ID` 对该任务 URL 可用。
+    原文"`id:` 跨连接不单调"应读作**跨任务**不可比；同一任务重连时它是单调的（口径更正）。
+- **复核**：复核者确认（2026-10-26）。
+
 ---
 
 ### G-8 全量跑 pytest 偶发一条集成用例 setup ERROR（P2，flaky 登记）
@@ -422,7 +491,7 @@ grep -c "^\s*run:" .github/workflows/ci.yml   # 2（一条装依赖、一条跑�
 
 ## H · 计量口径：一次任务的「耗时」与「钱」
 
-### H-1 轨迹页的「总耗时」把节点 span 和单步耗时加了两遍（P1，**未关闭**）
+### H-1 轨迹页的「总耗时」把节点 span 和单步耗时加了两遍（P1，**已关闭 2026-10-26**）
 
 **现象**：轨迹回放页顶部那块「总耗时」指标卡读出来是墙钟的 **1.69–2.00 倍**。
 README 首屏 GIF 里就能看到它（那一格显示 `1m 10s`，而那条任务真实墙钟 41.6 s）。
@@ -457,7 +526,19 @@ curl -s "$BASE/tasks/<task_id>/trace?limit=500" | python -c "import sys,json;e=j
 别沿用同一个标签。
 **为什么现在不动**：读数口径缺陷，不崩；而"对的那个说法"要连筛选态语义一起拍，归后端/前端账。
 
-### H-2 `tasks.cost` 只记每个节点**最后一次** LLM 调用（P1，**未关闭**）
+**关闭申报（2026-10-25，复核者确认）**
+
+- **结论**：已修复（页面总耗时只加**未筛选**的 `node_end`；筛选只影响计数与分布）。
+- **改动**：`web-react/src/pages/TraceReplayPage.tsx` 的 `stats` 改为对未筛选 `events` 里
+  `event_type === 'node_end'` 的 `latency_ms` 求和；指标卡读该值；「平均 / 步」的分母改为
+  `node_end` 条数；没有 `node_end` 的旧任务显示 `—`，不回退到全事件求和。未新增 `/tasks/{id}` 请求。
+- **证据（2026-10-25 本机，Playwright 真实 DOM）**：`web-react/tools/uicheck/traceDuration.cjs`
+  对 `task-804d76037a07` 读到指标卡 **1m 18s（78,000 ms）**，Σ `node_end` = **78,407 ms**，
+  旧「Σ 全部事件」= **144,312 ms**；「只看失败」筛选后总耗时不变；路由拦截剔除 `node_end`
+  的对照下显示 `—`。`npm run typecheck` 与 `npm run build` 均通过（2026-10-25 复跑，build 23.85 s）。
+- **复核**：复核者确认（2026-10-26）。
+
+### H-2 `tasks.cost` 只记每个节点**最后一次** LLM 调用（P1，**已关闭 2026-10-26**）
 
 **现象**：多步任务的实际花费被少算 37–39%（`tasks.cost` / Σ 事件成本 = 0.61 … 0.64），
 而 `/cost-breakdown` 自带的对账位在真实任务上就是 `false`。
@@ -500,14 +581,34 @@ Mock 造两条 `llm_call` 的节点），让 T1 先红一次；② 再二选一�
 **影响**：同屏两个数 —— 按角色那张表读事件侧（全的），任务列表与 `tasks.cost` 读节点侧（少的）。
 别把 `tasks.cost` 当账单，也别拿它做预算闸。
 
+#### 关闭申报（2026-10-25，复核者确认）
+
+- **结论**：已修复（代码 + 历史 done 任务成本回填）
+- **修改文件**：`core/agent/base.py`（节点级累加）、`tests/unit/test_agent_usage_accumulation.py`（3 条单测）、`scripts/backfill_tasks_cost.py`（一次性回填，dry-run 默认，`--apply` 才写库）
+- **dry-run 读数**（2026-10-25，`status='done'`，`event_type='llm_call'`）：
+
+| task_id | llm_call 条数 | 旧 cost | 新 cost | 差额 | 少算 |
+|---|---:|---:|---:|---:|---:|
+| `task-804d76037a07` | 6 | 0.055564 | 0.085106 | +0.029542 | 34.71% |
+| `task-b166a147ffad` | 6 | 0.024242 | 0.038851 | +0.014609 | 37.60% |
+| `task-d98f1db80457` | 6 | 0.022763 | 0.032766 | +0.010003 | 30.53% |
+
+- **apply 读数**：备份 `data/backfill_tasks_cost_20261025.json`；回填 3 条 `tasks.cost`；`task_events` / `duration_ms` / `status` 未修改；取消任务未触碰。
+- **复跑命令 2（成本）**：36 条任务，`cost_not_equal = 1`，只剩 `task-1365c179c055`（canceled）：
+  `tasks.cost=0.0` vs `Σ llm_call.cost=0.012591495`。
+- **复跑命令 3（耗时）**：`duration_mismatch = 1`，同样只剩 `task-1365c179c055`（canceled）：
+  `duration_ms=0` vs `Σ node_end=23612`。回填未影响耗时口径。
+- **回填后样本**：3 条历史 done 与 `task-c18c301585f0` 的 `|tasks.cost - Σ llm_call.cost|` 分别为 2.8e-7 / 2.0e-7 / 2.1e-7 / 1.3e-7，均 ≤1e-6。
+- **失败路径/边界用例**：无 `event_sink` 批量评测仍累加；有事件通道时 3 条 `llm_call` 不双计；同一节点连续两次调用会重置；取消任务按计划排除。
+- **复核**：复核者确认（2026-10-26）。
+
 ---
 
 ## 一句话版本（给只读三行的人）
 
 默认免鉴权且前端带不了 token（A-1/A-2）、`/health?deep=true` 能白烧额度（A-3）、
-上传与沙箱都没有第二道资源闸（A-4/A-5）、控制台比旧版少了看板/服务端分页/token 输入/检索测试
-（B-1…B-4）、评测里的 p 值与 nDCG 表都是历史口径且头号结论本机不可复跑（C-1…C-3）、
+上传与沙箱都没有第二道资源闸（A-4/A-5）、控制台比旧版少了看板/服务端分页/token 输入
+（B-1…B-3；B-4 检索测试已在 v0.2.0 补上）、评测里的 p 值与 nDCG 表都是历史口径且头号结论本机不可复跑（C-1…C-3）、
 可观测性只做到服务端一半（D-1…D-5）、依赖无 lock（E-1）、语料许可没进 LICENSE（F-1）、
-门禁对测试代码是半盲区、版本号有两个手写位且没人检查它、CI 只管测试不管 ruff/mypy/tsc（G-1/G-2/G-5/G-6）、
-SSE 那条流名为"从头订阅"其实不补发历史帧，丢了多少也没有计数器出口（G-7）、
-轨迹页「总耗时」把节点 span 与单步加了两遍而 `tasks.cost` 只记每个节点最后一次调用（H-1/H-2）。
+门禁对测试代码是半盲区、版本号有四个手写位且已有一致性护栏（G-5 已关闭）、CI 只管测试不管 ruff/mypy/tsc（G-1/G-2/G-5/G-6）、
+G-8 登记全量 pytest 偶发 setup ERROR；H-1/H-2/G-7/B-4 已关闭（复核者确认，2026-10-26）。

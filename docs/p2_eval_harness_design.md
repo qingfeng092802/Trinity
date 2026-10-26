@@ -1,21 +1,21 @@
 # P2 全链路评测台（任务集 + 规则断言 + 回归对比）· 系统设计
 
-> 状态：设计已归档 · 范围：**只读调研 + 设计**，不改任何生产代码
+> 作者：高见远（架构师） · 状态：设计待评审 · 范围：**只读调研 + 设计**，不改任何生产代码
 > 目标：让使用者能回答「我改了 Prompt / 换了模型之后，怎么知道变好了？」——
 > 用**真实可复现**的指标与**来自真实运行**的基线给出可归因的结论。
 
 ---
 
-## 0. 现状核实（先证伪既有转述，全部附证据）
+## 0. 现状核实（先证伪 team-lead 的转述，全部附证据）
 
 按纪律，下面每一条「现状是这样」的断言都附**实际读到的文件 + 行号**或**实际跑出的输出**。
-凡与既有转述不一致处，**加粗标注**。
+凡与 team-lead 转述不一致处，**加粗标注**。
 
 ### 0.1 已独立核实的现状
 
 | # | 结论 | 证据 |
 |---|------|------|
-| 1 | `task_events` 表已建，**20 列**（`event_seq` + 19 业务列，`AUTOINCREMENT` 主键） | `data/trinity.db` `PRAGMA table_info(task_events)` 实跑输出；建表 DDL 见 `storage/migrations.py`（`ensure_task_events_table`） |
+| 1 | `task_events` 表已建，**20 列**（`event_seq` + 19 业务列，`AUTOINCREMENT` 主键） | `data/agent_platform.db` `PRAGMA table_info(task_events)` 实跑输出；建表 DDL 见 `storage/migrations.py`（`ensure_task_events_table`） |
 | 2 | `GET /tasks/{id}/trace` 已上线：`def` 路由、Bearer 鉴权、`event_seq` 游标分页、老任务返回 200 + `events_available:false` | `api/routes/tasks.py:383-466`；响应模型 `api/schemas.py:540-591` |
 | 3 | `GET /eval` 已存在：`offset`/`limit` 契约（1..200 / ≥0），`items` 是 `EvalRecord.as_dict()` 裸 dict，`total` 走 `count_evals` 单独 count | `api/routes/eval.py:24-51`；契约 `api/schemas.py:315-321`；落库 `storage/db.py:380-434` |
 | 4 | 真实任务可跑通：`task-62302bd2c06a` = `status=done` / `score=8` / `cost=0.051993` / `duration_ms=36054` / `tool_calls=3` / **14 条事件（seq 23→36）** / 3 条 `tool_call` 均 `knowledge_search` | 实跑 DB 探针（见 `data/_arch5_probe_out.json`）；事件明细逐条核对 | 
@@ -24,14 +24,14 @@
 | 7 | 混合检索参数：`bm25_weight=0.4` + `vector_weight=0.6`；embedding = `bge-small-zh-v1.5`（dim 512） | `config.py:154-159`；`data/_arch5_env_out.json` |
 | 8 | LLM：`llm_model_large == llm_model_small == deepseek-flash`，Key 有效（`llm_configured=true`） | `config.py:58-63`；`data/_arch5_env_out.json` |
 
-### 0.2 与既有转述不一致 / 需要修正之处（重点）
+### 0.2 与 team-lead 转述不一致 / 需要修正之处（重点）
 
 **① `evaluation` 执行通道读的是「旧 traces 表」，不是 `task_events`（架构事实，影响全部设计）。**
 - `evaluation/batch.py:85-92`：`run_batch` 构造 `NodeContext.create(trace_sink=trace_store, tool_invoker=registry)` —— **只挂了 `trace_sink`，没有 `event_sink`**，所以 `run_batch` 跑出的任务**不产生任何 `task_events`**。
 - 对比 `api/runner.py:149-160`：`build_runner` 同时挂 `trace_sink` 与 `event_sink=DatabaseEventSink(database)`，所以**只有走 HTTP/队列的任务**才写 `task_events`。
 - 结论：`task_events`（P1-A 新表）只服务 `/trace` 回放；批量评测（`run_batch`）与 `TaskOutcome` 汇总走的是旧 `traces` 表。
 
-**② `tool_calls` 计数口径确实会分歧，并有实测证据（此前只是"怀疑"，此处给出实证）。**
+**② `tool_calls` 计数口径确实会分歧，并有实测证据（team-lead 只是"怀疑"，我给出实证）。**
 - `tasks.tool_calls` 来源链：`api/runner.py:413`（`tool_calls=outcome.tool_calls`）← `evaluation/metrics.py:60-78`（`TaskOutcome.from_state` 累加 `TraceRecord.tool_calls`）← 旧 `traces` 表（`evaluation/trace.py`）。
 - `task_events` 里的 `tool_call` 事件来源：`core/agent/base.py:447-477`（executor 每个子步骤逐条落盘）。
 - **两者实测分歧**：`task-85a272fd0efb` 的 `tasks.tool_calls=2`，但该任务 `task_events` 的 `tool_call` 事件数 = **0**（它由不带 `event_sink` 的路径产生）。而 `task-62302bd2c06a` 两者都为 3（走了 HTTP，两个 sink 都写）。
@@ -43,16 +43,16 @@
 - 若把 `max_steps` 直接绑到 `iterations`，一个「首轮成功、其实跑了 3 个节点」的任务会显示成 0 步——语义错误。见 §3.3 的替代口径。
 
 **④ `scripts/run_eval.py` 与 `evaluation/` 全套**已存在（不是从零新建）。
-- 需求转述为「加 `scripts/run_eval.py`」，实为**扩展**：现有 `scripts/run_eval.py:1-259` 已实现 `--dataset/--limit/--difficulty/--no-judge/--dry-run/--json` 与高峰计费护栏；`evaluation/batch.py`、`metrics.py`、`judge.py` 均已落地。
+- team-lead 说「加 `scripts/run_eval.py`」，实为**扩展**：现有 `scripts/run_eval.py:1-259` 已实现 `--dataset/--limit/--difficulty/--no-judge/--dry-run/--json` 与高峰计费护栏；`evaluation/batch.py`、`metrics.py`、`judge.py` 均已落地。
 - 因此本次设计的真实任务 = **在既有 criteria-based 评测之上，叠加「YAML 任务集 + 规则断言 + 基线 diff」**，并**不破坏**既有 `pytest tests/` 基线。
 
 **⑤ 磁盘上有一份未被索引的文档**：`data/knowledge/files/doc-829e61368158_cat6_spec_t07.txt` 存在于磁盘，但**不在 `documents` 表**里（`documents` 计数 = 4）。属 T07 测试残留，与本次无关，仅记录。
 
 **⑥ `evaluation/fixtures/` 的 4 篇文档 ≠ 云启智能 4 份文档**，是两个不同来源：
 - `evaluation/fixtures/{zonghebuxian,anfangjiankong,menjinyikatong,jifangguangbo}.md`（弱电/综合布线域）供 `retrieval_eval.py` 的**检索评测**（零 LLM）使用，配 `evaluation/dataset/knowledge_eval.jsonl`（26 条）。
-- 需求中的「知识库 4 份云启智能文档」是**运行中 KB**（`data/knowledge/`），供 Agent 端到端评测使用。两者别混。
+- team-lead 说的「知识库 4 份云启智能文档」是**运行中 KB**（`data/knowledge/`），供 Agent 端到端评测使用。两者别混。
 
-**⑦ 未独立复跑 `pytest tests/`（460 passed 为既有记录）**：本任务为只读设计，避免制造负载与副作用，未复跑全量测试；设计里把「不得打破既有测试」写作硬约束。
+**⑦ 未独立复跑 `pytest tests/`（460 passed 为 team-lead 转述）**：本任务为只读设计，避免制造负载与副作用，我没有复跑全量测试；设计里把「不得打破既有测试」写作硬约束。
 
 ### 0.3 `task_events` 事件类型与任务级埋点（供断言设计引用）
 
@@ -94,9 +94,9 @@ DB 实测出现的事件类型分布：`node_end`(9) / `node`(9) / `llm_call`(7)
 |------|------|------|
 | 端到端成色 | 绕开队列/并发/CAS/持久化，**非真·端到端** | **真·端到端**：含队列、并发上限、CAS 终态、SSE、持久化 |
 | 速度 | 快（无轮询开销） | 慢（`api_max_concurrent_tasks=3` 排队 + 轮询间隔） |
-| 污染 | 需指定隔离库（否则写 `trinity.db`） | 写运行中服务的库（无法隔离，除非重启，禁止） |
+| 污染 | 需指定隔离库（否则写 `agent_platform.db`） | 写运行中服务的库（无法隔离，除非重启，禁止） |
 | 稳定性 | 高（无端口/队列满/高峰硬拦） | 存在 `429`（队列满）、`422`（`api_block_peak_tasks` 高峰硬拦）、端口依赖 |
-| 环境约束 | 无 | 需 :8000 常驻服务；**不得启停服务**（只读约束） |
+| 环境约束 | 无 | 需 :8000 常驻服务；team-lead 明令**不得启停服务** |
 | `task_events` | 默认**不写**（除非显式挂 `event_sink`） | **自动写**（`build_runner` 已挂） |
 
 **推荐：默认直调，`--via-api` 作为「金标准通道」按需开启。** 理由与代价：
@@ -737,13 +737,13 @@ CODEBUDDY_SAFE_DELETE_ENABLED=0 ./.venv/Scripts/python.exe -m pip install -i htt
 
 ---
 
-## 10. 待明确事项与后续计划
+## 10. 待明确事项（需 team-lead / 用户拍板）
 
 | # | 事项 | 我的倾向 | 影响 |
 |---|------|----------|------|
 | Q1 | **`harness.py` 与 `batch.py` 是否合并**：新 harness 直调装配与 `batch.py:76-92` 有约 30 行重复。 | 先**并行**（不动 `batch.py`，零回归风险），后续再抽公共函数 | 若不合并，存在「两处装配逻辑」维护面；若合并，需改 `batch.py`（有回归风险） |
 | Q2 | **是否允许改动 `evaluation/metrics.py`**：`SuiteMetrics` 放 `metrics.py`（与既有指标同居）还是 `contracts.py`？ | 放 `metrics.py`（纯追加，低风险） | 影响 T02 是否触碰既有文件 |
-| Q3 | **直调默认库**：默认写入隔离库 `data/eval/eval_<stamp>.db`，还是复用 `trinity.db`？ | **隔离库**（不污染生产表；`retrieval_eval.py:261-267` 有此先例） | 影响「跑完能在 UI/`/trace` 里看到」的便利性 |
+| Q3 | **直调默认库**：默认写入隔离库 `data/eval/eval_<stamp>.db`，还是复用 `agent_platform.db`？ | **隔离库**（不污染生产表；`retrieval_eval.py:261-267` 有此先例） | 影响「跑完能在 UI/`/trace` 里看到」的便利性 |
 | Q4 | **`max_steps` 正式口径**：确认采用「节点执行次数」（我的推荐），还是坚持「打回轮数 `iterations`」？ | 节点执行次数 | 直接决定一项核心指标的定义 |
 | Q5 | **任务集规模与预算**：40 条（≈¥1.2–2.6/轮）是否够？是否要做 50 条 / `--repeat 3` 正式对比（≈¥4–8/轮）？ | 先 40 条 + 冒烟，正式对比再 repeat 3 | 决定 T01 任务集与预算上限 |
 | Q6 | **负样本判「编造」**：是否允许对负样本调用 LLM Judge（+成本）来判「是否编造」？还是仅用「免责措辞」规则断言（零成本但较粗）？ | 规则断言为主，judge 可选 | 影响负样本严谨度与成本 |
@@ -755,7 +755,7 @@ CODEBUDDY_SAFE_DELETE_ENABLED=0 ./.venv/Scripts/python.exe -m pip install -i htt
 ## 附：设计交付自检
 
 - ✅ 只读调研，**未修改任何生产代码**（仅新增本文档；探针脚本 `scripts/_arch5_probe_*.py` 与 `data/_arch5_*` 为一次性取证，可删）。
-- ✅ 所有「现状」断言附文件+行号或实跑输出；与既有转述不一致处已在 §0.2 逐条标注并给证据。
+- ✅ 所有「现状」断言附文件+行号或实跑输出；与 team-lead 转述不一致处已在 §0.2 逐条标注并给证据。
 - ✅ 指标口径逐条精确（§4），失败/超时计入方式明确。
 - ✅ 基线可比性元信息齐全（§3.4），含方差控制与容忍带。
 - ✅ 任务集期望值全部可回指文档出处（§5.3），含负样本设计。

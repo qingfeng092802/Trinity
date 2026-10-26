@@ -3320,6 +3320,77 @@ div.ast-math.mx-from-code {
   padding: 18px;
 }
 
+/* 知识库 · 试检索（B-4）：分数是单次查询内的相对分，三列都摆出来。 */
+.kb-search-bar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px;
+}
+.kb-search-bar .ant-input-search {
+  flex: 1 1 320px;
+  min-width: 220px;
+}
+.kb-search-error {
+  margin-top: 12px;
+  border: 1px solid var(--border);
+  border-radius: var(--r-sm);
+}
+.kb-hit-list {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  margin-top: 14px;
+}
+.kb-hit-meta {
+  font-size: var(--fs-12);
+  color: var(--text-3);
+  font-variant-numeric: tabular-nums;
+}
+.kb-hit {
+  padding: 12px 14px;
+  border: 1px solid var(--border);
+  border-radius: var(--r-md);
+  background: var(--bg-surface-2);
+}
+.kb-hit-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 6px 12px;
+}
+.kb-hit-doc {
+  font-weight: 600;
+  color: var(--text-1);
+  overflow-wrap: anywhere;
+}
+.kb-hit-chunk {
+  color: var(--text-3);
+  font-size: var(--fs-12);
+}
+.kb-hit-score {
+  margin-left: auto;
+  color: var(--primary-soft-fg);
+  font-size: var(--fs-12);
+  font-variant-numeric: tabular-nums;
+}
+.kb-hit-text {
+  margin: 8px 0;
+  color: var(--text-2);
+  font-size: var(--fs-13);
+  line-height: 1.65;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+.kb-hit-scores {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  color: var(--text-3);
+  font-size: var(--fs-12);
+  font-variant-numeric: tabular-nums;
+}
+
 .kb-action-error {
   display: flex;
   gap: 10px;

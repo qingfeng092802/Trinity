@@ -1,8 +1,7 @@
 /** 交互探针：选中任务后主区是否正确回填 + 404 资源定位。 */
 const { chromium } = require('playwright-core');
 
-// Chrome 路径：统一由 ./_chrome.cjs 解析（优先环境变量，回退各平台默认安装位置）
-const CHROME = require('./_chrome.cjs').resolveChrome();
+const CHROME = 'process.env.CHROME || 'C:/Program Files/Google/Chrome/Application/chrome.exe'';
 const BASE = process.env.BASE_URL || 'http://127.0.0.1:5199';
 
 (async () => {

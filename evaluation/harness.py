@@ -16,7 +16,7 @@
 
 ⚠️ **隔离库硬约束（务必遵守，违反会让检索类任务全灭）**
 ------------------------------------------------------
-``data/trinity.db`` **不只是任务库**，它同时是 **RAG 向量库**
+``data/agent_platform.db`` **不只是任务库**，它同时是 **RAG 向量库**
 （``documents`` / ``chunks`` / ``knowledge_vec*`` / ``knowledge_meta`` 都在同一个文件）。
 因此：
 
@@ -26,7 +26,7 @@
   （含 RAG 索引与全部影子表）整库复制到临时路径，再让直调通道的 ``Database`` /
   ``TraceStore`` 指向副本。**绝不新建空库**。
 * 副本路径记进 ``TaskRun.meta["db_path"]``，报告里自证「跑的是哪个知识库」。
-* **默认绝不写坏 ``data/trinity.db``**（那是演示库，含真实任务与知识库）。
+* **默认绝不写坏 ``data/agent_platform.db``**（那是演示库，含真实任务与知识库）。
   隔离副本跑完即删（``EvalHarness.close``）。
 
 口径（唯一真源，见 ``evaluation/contracts.py``）
@@ -381,7 +381,7 @@ def copy_sqlite_database(source: Path | str, dest: Path | str, *, overwrite: boo
     失败时退化为文件复制（连同 ``-wal`` / ``-shm``）。
 
     Args:
-        source: 源库路径（通常是运行中的 ``data/trinity.db``）。
+        source: 源库路径（通常是运行中的 ``data/agent_platform.db``）。
         dest: 目标副本路径。
         overwrite: 目标存在时是否覆盖（默认 ``False``，存在即报错）。
 
@@ -746,7 +746,7 @@ class EvalHarness:
             if source is None or not Path(source).is_file():
                 raise HarnessError(
                     "隔离模式需要可用的 SQLite 源库（须含 RAG 索引）；未找到："
-                    f"{source}。请用 source_db_path 指定，或确认 data/trinity.db 存在。"
+                    f"{source}。请用 source_db_path 指定，或确认 data/agent_platform.db 存在。"
                 )
             dest = self._make_dest(Path(source))
             # ★ 必须是「现有库的副本」，绝不能是空库（否则 knowledge_search 查不到东西）

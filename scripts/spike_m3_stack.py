@@ -16,7 +16,7 @@
 
 用法（必须用 3.12 那个 stdlib venv，**不要**用 uv 建的 `.venv`）::
 
-    <USER_HOME>\\venvs\\trinity-m3\\Scripts\\python.exe scripts\\spike_m3_stack.py
+    <USER_HOME>\\venvs\\agent1-m3\\Scripts\\python.exe scripts\\spike_m3_stack.py
     # 可选：--cmrc <parquet路径> 用真实语料测嵌入吞吐；--fast 只跑 ①②
 
 耗时基线是 M3 成本模型的地基，不要引用外部文档里的数字，一切以本脚本输出为准。

@@ -8,7 +8,7 @@
 3. ``TaskRun`` 字段齐备（对照 ``evaluation/contracts.py``）、``tool_source`` 正确溯源；
 4. ``event_sink`` / ``trace_sink`` 一致性自检生效（工具序列不一致时能报出来）。
 
-**隔离库纪律**：直调通道写入的是 ``data/trinity.db`` 的**一致性副本**
+**隔离库纪律**：直调通道写入的是 ``data/agent_platform.db`` 的**一致性副本**
 （用 SQLite backup API 整库复制，含 RAG 向量库），跑完删除；本文件断言生产库未被污染。
 """
 
@@ -48,7 +48,7 @@ from evaluation.taskset import Defaults, EvalTask, EvalTaskSet, ExpectedTools
 from tests.integration.mock_llm import MockLLMAdapter
 
 #: 运行库（含 4 份 ready 文档 + RAG 向量索引）；隔离副本的源
-SOURCE_DB = PROJECT_ROOT / "data" / "trinity.db"
+SOURCE_DB = PROJECT_ROOT / "data" / "agent_platform.db"
 
 #: ``TaskRun`` 契约字段全集（对照 contracts.py 逐字段核对）
 EXPECTED_TASKRUN_FIELDS = {

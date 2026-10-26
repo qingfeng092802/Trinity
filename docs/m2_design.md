@@ -1,7 +1,7 @@
 # M2 系统设计 + 任务分解：RAG 知识库接入
 
 > 阶段 5 · M2（第 3-5 周 · 只做 P0，P1 仅预留接口）
-> 需求基线：`docs/m2_prd.md`（9 项开放问题已全部拍板）　|　面向：工程师施工图
+> 需求基线：`docs/m2_prd.md`（9 项开放问题已全部拍板）　|　架构：高见远　|　面向：工程师施工图
 > 前置依赖：M1 已交付 REST API（`api/`）、任务队列、SSE、`POST /tools/{name}/invoke`。
 > 本文只做**设计**，不含实现代码。配套图：`docs/m2_class-diagram.mermaid`、`docs/m2_sequence-diagram.mermaid`。
 
@@ -29,7 +29,7 @@
 |---|---|---|---|
 | ① **sqlite-vec 与 Python 3.14 兼容性**（本项目 `.venv` 是 CPython 3.14，pyc 已证实） | `VectorStore` 双实现 + `create_vector_store()` 工厂，**降级不动上层**。spike 脚本 `scripts/spike_sqlite_vec.py`：Tencent 镜像装 → `conn.load_extension` → 建 vec0 虚拟表 → 插查 10 条 → 计时。任一步失败 → `vector_store_backend="chroma"`（chromadb 0.5+ 声明支持 3.13+，3.14 需实测，双 fallback 链见 §1.2） | T01 内完成，spike 输出写进 `docs/m2_rag.md` 附录 |
 | ② **torch/sentence-transformers 在 CPython 3.14 的 wheel 可得性** | 三级降级链：`sentence-transformers + torch(CPU)` → `fastembed`（ONNX，无 torch 依赖，支持 bge 系列）→ 均不可用则仅 API provider（M2 不做）。`EmbeddingProvider` 协议下三者对上层透明 | T01 spike 脚本 `scripts/spike_embedding_stack.py` 试装试跑 `embed(["测试"])` |
-| ③ **bge 权重来源**（路径由 `scripts/probe_bge_weights.py` 探测定位，可用 `BGE_SCAN_ROOTS` 覆盖） | `embedding_model_path=""`（默认）→ 启动按探测顺序找：① env/`settings.embedding_model_path` → ② `scripts/probe_bge_weights.py` 在配置的扫描根下按目录名匹配 `bge-small-zh` → ③ hf-mirror.com 下载到 `data/models/bge-small-zh-v1.5/`。**探测结果回填 `.env`，不让运行时每次扫描磁盘** | T01 内运行探测脚本并固化路径 |
+| ③ **bge 权重来源**（本会话沙箱无法枚举 D:\，RAGFlow Pro 遗留权重路径待本机确认） | `embedding_model_path=""`（默认）→ 启动按探测顺序找：① env/`settings.embedding_model_path` → ② `scripts/probe_bge_weights.py` 在常见根目录（含 `D:\*ragflow*`）按目录名匹配 `bge-small-zh` → ③ hf-mirror.com 下载到 `data/models/bge-small-zh-v1.5/`。**探测结果回填 `.env`，不让运行时每次扫描磁盘** | T01 内运行探测脚本并固化路径 |
 | ④ **50 页 PDF ≤2min（CPU）** | 吞吐估算（§1.6）：~120 chunks，解析 2-5s + jieba <1s + bge-small CPU 批量 ~5-15s + 入库 <1s，**常态 ≤30s**，2 分钟有 4 倍余量。降速预案：batch 减半、跳过已索引（file_hash 去重）、极端时 ONNX 导出（P2） | T02 末尾跑 `scripts/bench_index.py` 实测 50 页样例 PDF 计时 |
 | ⑤ **embedding 提供商切换** | 指纹校验双闸：检索入口（409 + 提示重索引）与索引入口（新指纹写入后旧向量标记过期）。重索引 = 对每个文档走 retry 通道（P1-4 只做单文档级，M2 够用） | T03 集成测试：改 `EMBEDDING_MODEL_NAME` 后检索 → 409 |
 
@@ -65,8 +65,8 @@
 | PDF 解析 | **pypdf ≥5** | 纯 Python、零系统依赖、Windows 友好；文本型 PDF 够用 | PyMuPDF（AGPL + 二进制 wheel 大）、pdfplumber（慢，表格需求用不上） |
 | DOCX 解析 | **python-docx ≥1.1** | 事实标准，段落级读取正好喂给切分器 | docx2txt（无结构信息） |
 | Markdown/HTML/TXT | **标准库**（`html.parser` 沿用 `web_search.py` 的零依赖纪律）+ 轻量自制行扫描 | Markdown 标题边界就是行首 `#{1,6} `，不值得引 mistune | mistune/markdown-it（切分只需要结构块，不需要 AST） |
-| 切分 | **自制 `DocumentSplitter`**（~150 行） | 标题/段落优先 + token 窗口是本项目值得自研的点，引 langchain-text-splitters 反而失去对切分逻辑的掌控且调参不透明 | langchain-text-splitters |
-| Embedding | **sentence-transformers + torch CPU**（fastembed 为 ONNX 备胎） | bge-small-zh-v1.5 官方配方 | API provider（成本+网络依赖+可控性弱，Q2 已否） |
+| 切分 | **自制 `DocumentSplitter`**（~150 行） | 标题/段落优先 + token 窗口是本项目值得自研的点，引 langchain-text-splitters 反而失去叙事且调参不透明 | langchain-text-splitters |
+| Embedding | **sentence-transformers + torch CPU**（fastembed 为 ONNX 备胎） | RAGFlow Pro 经验复用；bge-small-zh-v1.5 官方配方 | API provider（成本+网络依赖+叙事弱，Q2 已否） |
 | 向量库 | **sqlite-vec**（chromadb 降级备选） | 与"SQLite 单一存储"哲学一致；同库同事务；备份=拷文件 | FAISS（纯内存自管持久化）、Milvus/Qdrant（独立进程，单机不需要） |
 | BM25 | **rank_bm25 + jieba** | 中文分词质量可控；百级 chunk 重建毫秒级 | SQLite FTS5（中文分词器差，Q4 已否） |
 | 并发模型 | **专职单线程索引 + FastAPI `def` 路由读** | SQLite 单写者天然友好；索引吞吐瓶颈在模型推理，多线程无收益反增锁复杂度 | 复用 M1 TaskQueue（饿死 Agent 任务）、asyncio 队列（worker 是同步 CPU 密集） |
@@ -383,13 +383,13 @@ class KnowledgeService:
 - **子步骤**：
   1. `pyproject.toml`：dependencies 增加 `pypdf>=5`、`python-docx>=1.1`、`rank-bm25>=0.2`、`jieba>=0.42`、`sentence-transformers>=3`、`sqlite-vec>=0.1`（chromadb 不进基础依赖，降级时再装）；安装走 `-i https://mirrors.cloud.tencent.com/pypi/simple`；`[tool.mypy] files`、`known-first-party`、`coverage source` 加 `"rag"`。
   2. **跑 spike①**：`python scripts/spike_sqlite_vec.py`（装→load_extension→vec0 建表→插 10 条→KNN 查询→计时）。PASS → `.env` 固化 `VECTOR_STORE_BACKEND=sqlite-vec`；FAIL → 装 chromadb、固化 `chroma`，并在 `docs/m2_rag.md` 附录记录失败原因。
-  3. **跑 spike②**：`python scripts/spike_embedding_stack.py`。确认 torch+sentence-transformers 在 CPython 3.14 可用；不可用则试 fastembed；两者皆败 → 需人工决策（换 Python 3.13 venv 或改 API provider，这是唯一需要升级决策的点）。
+  3. **跑 spike②**：`python scripts/spike_embedding_stack.py`。确认 torch+sentence-transformers 在 CPython 3.14 可用；不可用则试 fastembed；两者皆败 → 上报 team-lead 决策（换 Python 3.13 venv 或改 API provider，这是唯一需要升级决策的点）。
   4. **跑权重探测**：`python scripts/probe_bge_weights.py`（§1.4 探测序），把命中路径写进 `.env` 的 `EMBEDDING_MODEL_PATH`；无命中则走 hf-mirror 下载到 `data/models/`。
   5. `config.py`：新增 §7.1 的 14 个字段 + `bm25_weight + vector_weight ≈ 1`（±0.01）的 model_validator（不满足则告警并归一化）。
   6. `storage/models.py`：`DocumentRecord`（含 `file_hash`、`embedding_fingerprint`、`error_stage/error_message`）、`ChunkRecord`（`document_id` 外键 + `seq` 唯一约束）、`KnowledgeMeta`（key/value，存库级指纹）。
   7. `rag/types.py` + `rag/exceptions.py`：数据类与异常层级；`Chunk` 带 `chunk_id = f"{document_id}:{seq:04d}"`。
 - **验证方式**：
-  - 三个 spike/探测脚本各产出明确结论并回填 `.env`（这是本任务的核心交付物，**结论必须回填到 `.env` 与 `docs/m2_rag.md`**）；
+  - 三个 spike/探测脚本各产出明确结论并回填 `.env`（这是本任务的核心交付物，**工程师必须把结论同步给 team-lead**）；
   - `uv sync`（或 `pip install -e . -i <腾讯镜像>`）通过；`pytest tests/ -q` 全绿（现有用例不受影响）；
   - `EMBEDDING_BATCH_SIZE=8 python -c "from config import get_settings; print(get_settings().embedding_batch_size)"` → 8（配置覆盖生效）。
 
@@ -573,7 +573,7 @@ DOC_INDEXING_STATUSES = frozenset({"pending","parsing","chunking","embedding"})
 
 | # | 风险 | 影响 | 缓解 |
 |---|---|---|---|
-| R-M2-1 | CPython 3.14 生态（torch / sqlite-vec wheel） | 底盘选型受阻 | 三级降级链已设计（§0.2①②）；唯一升级点：两条链全败 → 需人工决策换 venv |
+| R-M2-1 | CPython 3.14 生态（torch / sqlite-vec wheel） | 底盘选型受阻 | 三级降级链已设计（§0.2①②）；唯一升级点：两条链全败 → team-lead 决策换 venv |
 | R-M2-2 | bge 权重探测不到（D:\ 枚举被沙箱限制） | 索引无法启动 | hf-mirror 兜底下载（~100MB，一次即可）；探测脚本结果固化 `.env` |
 | R-M2-3 | sqlite-vec 与 WAL 并存 | 写入异常（理论） | spike① 覆盖 WAL 场景；异常则 ChromaStore 独立目录 |
 | R-M2-4 | jieba 分词质量影响 BM25 召回 | 命中率下降 | 评测逐条明细可定位；术语可加自定义词典（`jieba.add_word`，P2） |
@@ -591,7 +591,7 @@ DOC_INDEXING_STATUSES = frozenset({"pending","parsing","chunking","embedding"})
 | A3 | 索引进度是否进 SSE | **不进**：分钟粒度轮询足够，且 IndexWorker 在独立线程，接 EventBus 需跨线程桥接收益为零 | 轮询 `GET /knowledge/documents/{id}`；P1 控制台页同口径 |
 | A4 | 重试（retry）语义 | 从 parsing 全量重跑（不做阶段断点）；单文档秒级成本，复杂度不值得 | 无 |
 | A5 | `embedding_dim` 可配置的风险 | 改维度必然指纹变化触发重索引，属于 Q7 既有语义 | 保留可配，文档标注"改了就要重索引" |
-| A6 | 评测种子文档的来源 | 由用户本人提供 3-5 份弱电文档 + 自标 20+ 条（Q9 口径）；工程师先以公开综合布线规范摘要占位跑通链路 | **需要在 T05 前交付标注集** |
+| A6 | 评测种子文档的来源 | 由用户本人提供 3-5 份弱电文档 + 自标 20+ 条（Q9 口径）；工程师先以公开综合布线规范摘要占位跑通链路 | **需要用户在 T05 前交付标注集**，请 team-lead 提前排期 |
 | A7 | P1 控制台「知识库」页接口预留 | 7 个端点已覆盖 P1-2 全部数据需求（overview/上传/列表/重试/删除/检索测试），P1 无需新增后端 | 无 |
 | A8 | spike 全败时的工期影响 | T01 顺延 1-2 天，其余任务结构不变（抽象层已隔离） | 触发时立即上报，不动上游排期 |
 
@@ -607,4 +607,4 @@ DOC_INDEXING_STATUSES = frozenset({"pending","parsing","chunking","embedding"})
 
 ---
 
-*文档结束。实现过程中如遇与本文冲突的既有代码，以本文为准；若本文与 `docs/m2_prd.md` 冲突（尤其 §8 拍板结论），以 `docs/m2_prd.md` 为准。*
+*文档结束。实现过程中如遇与本文冲突的既有代码，以本文为准；若本文与 `docs/m2_prd.md` 冲突（尤其 §8 拍板结论），先找 team-lead 确认，不要自行改口径。*

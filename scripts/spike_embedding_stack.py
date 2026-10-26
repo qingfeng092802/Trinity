@@ -8,7 +8,7 @@
 降级链（三级）：
     ① sentence-transformers + torch(CPU)   ← 本脚本验证
     ② fastembed（ONNX，无 torch 依赖）      ← ①失败时按脚本提示安装验证
-    ③ 两者皆败 → 需人工决策（唯一升级点）
+    ③ 两者皆败 → 上报 team-lead 决策（唯一升级点）
 
 用法::
 
@@ -196,7 +196,7 @@ def main() -> int:
               "拦截 sklearn 未签名 pyd），但 fastembed(ONNX) + 本地 bge 权重可用；"
               "rag.embedder 建议按 fastembed 方案实现")
         return 0
-    print("结论：FAIL —— sentence-transformers 与 fastembed 均不可用，需人工决策")
+    print("结论：FAIL —— sentence-transformers 与 fastembed 均不可用，上报 team-lead 决策")
     return 1
 
 

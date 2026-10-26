@@ -8,6 +8,7 @@ import type {
   DocumentUploadAck,
   DocumentView,
   KnowledgeOverview,
+  KnowledgeSearchResponse,
   LogEvent,
   ModelKeyAck,
   ModelKeyProbeView,
@@ -51,6 +52,7 @@ import type { LiveDelta, LiveUsageDelta } from '../utils/liveAnswer';
  *   GET  /knowledge/documents       → 文档列表（后端按创建时间倒序）
  *   GET  /knowledge/documents/{id}  → 单文档详情（索引进度轮询就读它）
  *   POST /knowledge/documents       → 上传（multipart，201 = 已受理排队，非索引完成）
+ *   POST /knowledge/search          → 试检索（JSON body：query / top_k，空库 200 + hits: []）
  *   DELETE /knowledge/documents/{id}→ 物理删（chunk + 向量 + 记录 + 磁盘原件）
  *   POST /knowledge/documents/{id}/retry → 重试 failed（回 pending 全量重跑）
  *   GET  /eval/retrieval-report     → 最近一次检索评测报告（只读透传）
@@ -249,12 +251,12 @@ function parseJson(raw: unknown): Record<string, unknown> | null {
  * @param onUsage 用量增量（`usage` 帧）。一次 LLM 调用一笔，由调用方累加。
  *   ⚠️ 与 `delta` 一样是**运行中的过程量**：终态一律以详情回执为准。
  *
- * ⚠️ 重连**不依赖** `Last-Event-ID`：后端 SSE 路由根本不读那个头。帧的 `id:`
- *    自 2026-10-02（Q6-10）起只有一个发号者 —— worker 的任务级计数器，一条任务内
- *    严格递增，连接本地的合成帧（`snapshot` / `heartbeat`）干脆不带 `id:`；
- *    但它**每条任务都从 1 起**，跨任务、跨连接仍不可比 ⇒ 交给浏览器自动重连只会
- *    **静默丢事件**。所以这里自己退避重连，并在恢复后回一次 `restored`，
- *    由调用方按 `event_seq` 从 `/trace` 补拉对账。
+ * ⚠️ 重连仍**不依赖**浏览器自带的 `Last-Event-ID`：这里主动 close 后新建
+ *    EventSource，新连接不带游标（后端自 v0.2.0 起已支持按该头跳过已见帧）。
+ *    帧的 `id:` 自 2026-10-02（Q6-10）起只有一个发号者 —— worker 的任务级计数器，
+ *    一条任务内严格递增，连接本地的合成帧（`snapshot` / `heartbeat`）不带 `id:`；
+ *    号**每条任务都从 1 起**，跨任务不可比。所以这里自己退避重连，并在恢复后
+ *    回一次 `restored`，由调用方按 `event_seq` 从 `/trace` 补拉对账（不依赖补发）。
  */
 export function subscribeTaskStream(
   taskId: string,
@@ -374,8 +376,8 @@ export function subscribeTaskStream(
 
     /* 传输层出错 ≠ 任务终态。这里**不**调 onDone（那是"任务结束了"的意思），
        而是关流后自己按退避表重连；三次都接不上才认输，并如实交给调用方去说。
-       为什么不用浏览器自带的自动重连：它的游标（Last-Event-ID）在这个后端是坏的
-       —— 见函数头那条 ⚠️ —— 靠它会把断口那几帧静默吞掉。 */
+       为什么不用浏览器自带的自动重连：它的重试节奏不可控，而且本客户端主动
+       close 后新连接不带 Last-Event-ID —— 对账仍走 /trace（见函数头那条 ⚠️）。 */
     es.onerror = () => {
       if (disposed) return;
       es.close();
@@ -579,6 +581,24 @@ export async function validateModelKey(provider: string, apiKey: string): Promis
 
 export async function fetchKnowledgeOverview(): Promise<KnowledgeOverview> {
   return getJson<KnowledgeOverview>('/knowledge/overview');
+}
+
+/** 试检索：**POST**，不是 README 旧版写的 GET。
+ *
+ * 请求体是 ``{query, top_k, bm25_weight?, vector_weight?}``；空库返回 200 + hits: []，
+ * 调用方要把空列表当“库为空/没命中”展示，而不是当错误。409 fingerprint_mismatch
+ * 走统一的 ApiFetchError，由页面提示全量重索引。 */
+export async function searchKnowledge(payload: {
+  query: string;
+  top_k?: number;
+  bm25_weight?: number;
+  vector_weight?: number;
+}): Promise<KnowledgeSearchResponse> {
+  return getJson<KnowledgeSearchResponse>('/knowledge/search', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(payload),
+  });
 }
 
 /** 文档列表（后端按创建时间倒序排好，前端不再排）。 */

@@ -228,8 +228,7 @@ const { chromium } = require('playwright-core');
 const fs = require('fs');
 const path = require('path');
 
-// Chrome 路径：统一由 ./_chrome.cjs 解析（优先环境变量，回退各平台默认安装位置）
-const CHROME = require('./_chrome.cjs').resolveChrome();
+const CHROME = 'process.env.CHROME || 'C:/Program Files/Google/Chrome/Application/chrome.exe'';
 const BASE = process.env.BASE_URL || 'http://127.0.0.1:5173';
 const OUT = process.env.OUT_DIR || path.resolve(__dirname, 'shots/running');
 const {
@@ -549,7 +548,7 @@ async function passReplay(browser, scheme, label) {
     colorScheme: scheme,
     locale: 'zh-CN',
   });
-  await ctx.addInitScript((s) => localStorage.setItem('trinity-console.theme', s), scheme);
+  await ctx.addInitScript((s) => localStorage.setItem('agent1-console.theme', s), scheme);
   const page = await ctx.newPage();
   const errors = [];
   page.on('pageerror', (e) => errors.push(e.message));
@@ -905,7 +904,7 @@ async function passRunning(browser, scheme, label) {
     colorScheme: scheme,
     locale: 'zh-CN',
   });
-  await ctx.addInitScript((s) => localStorage.setItem('trinity-console.theme', s), scheme);
+  await ctx.addInitScript((s) => localStorage.setItem('agent1-console.theme', s), scheme);
   const page = await ctx.newPage();
   const errors = [];
   const cancelHits = [];
@@ -1326,7 +1325,7 @@ async function passVirtual(browser) {
     colorScheme: 'dark',
     locale: 'zh-CN',
   });
-  await ctx.addInitScript((s) => localStorage.setItem('trinity-console.theme', s), 'dark');
+  await ctx.addInitScript((s) => localStorage.setItem('agent1-console.theme', s), 'dark');
   const page = await ctx.newPage();
   const errors = [];
   page.on('pageerror', (e) => errors.push(e.message));
@@ -1695,7 +1694,7 @@ async function passCitations(browser) {
     colorScheme: 'light',
     locale: 'zh-CN',
   });
-  await ctx.addInitScript(() => localStorage.setItem('trinity-console.theme', 'light'));
+  await ctx.addInitScript(() => localStorage.setItem('agent1-console.theme', 'light'));
   const page = await ctx.newPage();
   const errors = [];
   page.on('pageerror', (e) => errors.push(e.message));
@@ -1826,7 +1825,7 @@ async function passExpandCost(browser) {
     colorScheme: 'light',
     locale: 'zh-CN',
   });
-  await ctx.addInitScript(() => localStorage.setItem('trinity-console.theme', 'light'));
+  await ctx.addInitScript(() => localStorage.setItem('agent1-console.theme', 'light'));
 
   const cases = [
     { 名: '100 行', n: 33, 门槛ms: 200 },
@@ -1943,7 +1942,7 @@ async function passModelReadout(browser, scheme, label) {
     colorScheme: scheme,
     locale: 'zh-CN',
   });
-  await ctx.addInitScript((s) => localStorage.setItem('trinity-console.theme', s), scheme);
+  await ctx.addInitScript((s) => localStorage.setItem('agent1-console.theme', s), scheme);
 
   const variants = [
     { 名: '两档同一模型', body: modelsBody, 胶囊: '模型 deepseek-flash', 来路: '表内价' },
@@ -2151,7 +2150,7 @@ async function passResultCenter(browser, scheme, label) {
       colorScheme: scheme,
       locale: 'zh-CN',
     });
-    await ctx.addInitScript((s) => localStorage.setItem('trinity-console.theme', s), scheme);
+    await ctx.addInitScript((s) => localStorage.setItem('agent1-console.theme', s), scheme);
     const page = await ctx.newPage();
     const errors = [];
     page.on('pageerror', (e) => errors.push(e.message));
@@ -2242,7 +2241,7 @@ async function passResultPolish(browser, scheme, label) {
     colorScheme: scheme,
     locale: 'zh-CN',
   });
-  await ctx.addInitScript((s) => localStorage.setItem('trinity-console.theme', s), scheme);
+  await ctx.addInitScript((s) => localStorage.setItem('agent1-console.theme', s), scheme);
   const page = await ctx.newPage();
   const errors = [];
   page.on('pageerror', (e) => errors.push(e.message));
@@ -2597,7 +2596,7 @@ async function passNarrowOverflow(browser) {
       colorScheme: 'light',
       locale: 'zh-CN',
     });
-    await ctx.addInitScript(() => localStorage.setItem('trinity-console.theme', 'light'));
+    await ctx.addInitScript(() => localStorage.setItem('agent1-console.theme', 'light'));
     const page = await ctx.newPage();
     const errors = [];
     page.on('pageerror', (e) => errors.push(e.message));
@@ -2740,7 +2739,7 @@ async function passTraceSelection(browser) {
     colorScheme: 'light',
     locale: 'zh-CN',
   });
-  await ctx.addInitScript(() => localStorage.setItem('trinity-console.theme', 'light'));
+  await ctx.addInitScript(() => localStorage.setItem('agent1-console.theme', 'light'));
   const page = await ctx.newPage();
   const errors = [];
   page.on('pageerror', (e) => errors.push(e.message));
@@ -2902,7 +2901,7 @@ async function passListSelectFinish(browser) {
     colorScheme: 'light',
     locale: 'zh-CN',
   });
-  await ctx.addInitScript(() => localStorage.setItem('trinity-console.theme', 'light'));
+  await ctx.addInitScript(() => localStorage.setItem('agent1-console.theme', 'light'));
   await ctx.addInitScript(esLedgerInit);
   const page = await ctx.newPage();
   const errors = [];
@@ -2994,7 +2993,7 @@ async function passRenderCount(browser) {
     colorScheme: 'light',
     locale: 'zh-CN',
   });
-  await ctx.addInitScript(() => localStorage.setItem('trinity-console.theme', 'light'));
+  await ctx.addInitScript(() => localStorage.setItem('agent1-console.theme', 'light'));
   const page = await ctx.newPage();
   const errors = [];
   page.on('pageerror', (e) => errors.push(e.message));
@@ -3186,7 +3185,7 @@ async function passLateResponse(browser) {
     colorScheme: 'light',
     locale: 'zh-CN',
   });
-  await ctx.addInitScript(() => localStorage.setItem('trinity-console.theme', 'light'));
+  await ctx.addInitScript(() => localStorage.setItem('agent1-console.theme', 'light'));
   const page = await ctx.newPage();
   const errors = [];
   page.on('pageerror', (e) => errors.push(e.message));
@@ -3346,7 +3345,7 @@ async function passStreamDrop(browser) {
       colorScheme: 'light',
       locale: 'zh-CN',
     });
-    await ctx.addInitScript(() => localStorage.setItem('trinity-console.theme', 'light'));
+    await ctx.addInitScript(() => localStorage.setItem('agent1-console.theme', 'light'));
     const page = await ctx.newPage();
     const errors = [];
     const consoleErrs = [];
@@ -3570,7 +3569,7 @@ async function passCancelOutcome(browser) {
       colorScheme: 'light',
       locale: 'zh-CN',
     });
-    await ctx.addInitScript(() => localStorage.setItem('trinity-console.theme', 'light'));
+    await ctx.addInitScript(() => localStorage.setItem('agent1-console.theme', 'light'));
     const page = await ctx.newPage();
     const errors = [];
     const cancelHits = [];
@@ -3811,7 +3810,7 @@ async function passHiddenProbe(browser) {
     colorScheme: 'light',
     locale: 'zh-CN',
   });
-  await ctx.addInitScript(() => localStorage.setItem('trinity-console.theme', 'light'));
+  await ctx.addInitScript(() => localStorage.setItem('agent1-console.theme', 'light'));
   /* Playwright 的页面永远是 visible ⇒ 不接管这两个属性，"在后台被打开"这条路径
      压根造不出来，整趟就是空跑。addInitScript 跑在应用脚本之前，正合适。
      ⚠️ 必须 configurable: true（覆盖 Document.prototype 上的 getter），
@@ -3909,7 +3908,7 @@ async function passComposerSettings(browser) {
     colorScheme: 'light',
     locale: 'zh-CN',
   });
-  await ctx.addInitScript(() => localStorage.setItem('trinity-console.theme', 'light'));
+  await ctx.addInitScript(() => localStorage.setItem('agent1-console.theme', 'light'));
   const page = await ctx.newPage();
   const errors = [];
   page.on('pageerror', (e) => errors.push(e.message));
@@ -4085,7 +4084,7 @@ async function passComposerSettings(browser) {
     colorScheme: 'light',
     locale: 'zh-CN',
   });
-  await ctx2.addInitScript(() => localStorage.setItem('trinity-console.theme', 'light'));
+  await ctx2.addInitScript(() => localStorage.setItem('agent1-console.theme', 'light'));
   const page2 = await ctx2.newPage();
   page2.on('pageerror', (e) => errors.push(e.message));
   await installMocks(page2);
@@ -4210,7 +4209,7 @@ async function passCsvDownload(browser) {
     colorScheme: 'light',
     locale: 'zh-CN',
   });
-  await ctx.addInitScript(() => localStorage.setItem('trinity-console.theme', 'light'));
+  await ctx.addInitScript(() => localStorage.setItem('agent1-console.theme', 'light'));
   const page = await ctx.newPage();
   const errors = [];
   page.on('pageerror', (e) => errors.push(e.message));
@@ -4307,7 +4306,7 @@ async function passRunbarAnnounce(browser) {
     colorScheme: 'light',
     locale: 'zh-CN',
   });
-  await ctx.addInitScript(() => localStorage.setItem('trinity-console.theme', 'light'));
+  await ctx.addInitScript(() => localStorage.setItem('agent1-console.theme', 'light'));
   const page = await ctx.newPage();
   const errors = [];
   page.on('pageerror', (e) => errors.push(e.message));
@@ -4455,7 +4454,7 @@ async function passAnswerMemo(browser) {
     colorScheme: 'light',
     locale: 'zh-CN',
   });
-  await ctx.addInitScript(() => localStorage.setItem('trinity-console.theme', 'light'));
+  await ctx.addInitScript(() => localStorage.setItem('agent1-console.theme', 'light'));
   const page = await ctx.newPage();
   const errors = [];
   page.on('pageerror', (e) => errors.push(e.message));
@@ -4644,7 +4643,7 @@ async function passTickerAndMount(browser) {
     colorScheme: 'light',
     locale: 'zh-CN',
   });
-  await ctx.addInitScript(() => localStorage.setItem('trinity-console.theme', 'light'));
+  await ctx.addInitScript(() => localStorage.setItem('agent1-console.theme', 'light'));
   const page = await ctx.newPage();
   const errors = [];
   page.on('pageerror', (e) => errors.push(e.message));
@@ -4753,7 +4752,7 @@ async function passTickerAndMount(browser) {
     colorScheme: 'light',
     locale: 'zh-CN',
   });
-  await ctx2.addInitScript(() => localStorage.setItem('trinity-console.theme', 'light'));
+  await ctx2.addInitScript(() => localStorage.setItem('agent1-console.theme', 'light'));
   const p2 = await ctx2.newPage();
   p2.on('pageerror', (e) => errors.push(e.message));
   await installMocks(p2);
@@ -4922,7 +4921,7 @@ async function passUrlRestore(browser) {
     colorScheme: 'light',
     locale: 'zh-CN',
   });
-  await ctx.addInitScript(() => localStorage.setItem('trinity-console.theme', 'light'));
+  await ctx.addInitScript(() => localStorage.setItem('agent1-console.theme', 'light'));
   const page = await ctx.newPage();
   const errors = [];
   page.on('pageerror', (e) => errors.push(e.message));
@@ -5338,7 +5337,7 @@ async function passTableScrollX(browser) {
     })();
 
   const ctx = await browser.newContext({ viewport: { width: 390, height: 844 }, colorScheme: 'light', locale: 'zh-CN' });
-  await ctx.addInitScript(() => localStorage.setItem('trinity-console.theme', 'light'));
+  await ctx.addInitScript(() => localStorage.setItem('agent1-console.theme', 'light'));
   const page = await ctx.newPage();
   page.on('pageerror', (e) => errors.push(e.message));
   await installMocks(page);
@@ -5441,7 +5440,7 @@ async function passTableScrollX(browser) {
 
   /* 1440 档：不溢出 ⇒ 一切提示都不许出现。少了这一档，"永远画渐影"的实现也能全绿。 */
   const ctx2 = await browser.newContext({ viewport: { width: 1440, height: 900 }, colorScheme: 'light', locale: 'zh-CN' });
-  await ctx2.addInitScript(() => localStorage.setItem('trinity-console.theme', 'light'));
+  await ctx2.addInitScript(() => localStorage.setItem('agent1-console.theme', 'light'));
   const wide = await ctx2.newPage();
   wide.on('pageerror', (msg) => errors.push(msg.message));
   await installMocks(wide);
@@ -5516,7 +5515,7 @@ async function passSurfaceHead(browser) {
 
   const open = async (width) => {
     const ctx = await browser.newContext({ viewport: { width, height: 900 }, colorScheme: 'light', locale: 'zh-CN' });
-    await ctx.addInitScript(() => localStorage.setItem('trinity-console.theme', 'light'));
+    await ctx.addInitScript(() => localStorage.setItem('agent1-console.theme', 'light'));
     const page = await ctx.newPage();
     page.on('pageerror', (msg) => errors.push(msg.message));
     await installMocks(page);
@@ -5638,7 +5637,7 @@ async function tabTo(page, cls, max = 60) {
 async function passCollapsedFocus(browser) {
   console.log('\n== J 续 · 收起态不许留焦点位 + 日志区键盘可滚（EV-07 / P1-10）==');
   const ctx = await browser.newContext({ viewport: { width: 1440, height: 900 }, colorScheme: 'light', locale: 'zh-CN' });
-  await ctx.addInitScript(() => localStorage.setItem('trinity-console.theme', 'light'));
+  await ctx.addInitScript(() => localStorage.setItem('agent1-console.theme', 'light'));
   const page = await ctx.newPage();
   const errors = [];
   page.on('pageerror', (e) => errors.push(e.message));
@@ -5689,7 +5688,7 @@ async function passCollapsedFocus(browser) {
      换成结果页当默认页之后，用户是先把整包 trace 拉完再点开日志页签 ⇒ 面板**带着满屏行
      第一次挂载**，而 `prevLen = useRef(rows.length)` ⇒ delta = 0 ⇒ 谁都不钉底。
      没修之前的实测：scrollTop=0 / max=2592、视口停在 #001–#025（最老那 25 行），而页脚写着
-     「自动滚动已开启」—— 界面承诺的位置与实际滚动位置不一致。修后同一处：top=2591 / max=2591 / #096–#120。
+     「自动滚动已开启」—— 一句做错了事的承诺。修后同一处：top=2591 / max=2591 / #096–#120。
      负面对照 NC-J（把 LogStream 那次钉底早退掉）实测把这一条打红，见 README 的 NC 清单。
      ⚠️ 必须放在这一趟**第一个读点**：下面 `tabTo()` 的键盘导航会把焦点滚进视口，任何一次滚动 /
      换关键字 / 再切页签都让它不再是"第一次挂载"。
@@ -5799,7 +5798,7 @@ async function passCollapsedFocus(browser) {
 
   /* ---- 窄屏：抽屉关着（translateX 推到屏外）同样不许留焦点位 ---- */
   const nctx = await browser.newContext({ viewport: { width: 390, height: 844 }, colorScheme: 'light', locale: 'zh-CN' });
-  await nctx.addInitScript(() => localStorage.setItem('trinity-console.theme', 'light'));
+  await nctx.addInitScript(() => localStorage.setItem('agent1-console.theme', 'light'));
   const npage = await nctx.newPage();
   const nerrors = [];
   npage.on('pageerror', (e) => nerrors.push(e.message));
@@ -5842,7 +5841,7 @@ async function passCostBreakdown(browser) {
     colorScheme: 'light',
     locale: 'zh-CN',
   });
-  await ctx.addInitScript(() => localStorage.setItem('trinity-console.theme', 'light'));
+  await ctx.addInitScript(() => localStorage.setItem('agent1-console.theme', 'light'));
   const page = await ctx.newPage();
   const errors = [];
   page.on('pageerror', (e) => errors.push(e.message));
@@ -5973,7 +5972,7 @@ async function passCostBreakdown(browser) {
 
   /* 6b 把系统时钟整个挪走：读数一个字符都不许变（前端没有自己算时间的余地） */
   const ctx2 = await browser.newContext({ viewport: { width: 1440, height: 1000 }, locale: 'zh-CN' });
-  await ctx2.addInitScript(() => localStorage.setItem('trinity-console.theme', 'light'));
+  await ctx2.addInitScript(() => localStorage.setItem('agent1-console.theme', 'light'));
   const page2 = await ctx2.newPage();
   await page2.clock.install({ time: new Date('2026-09-26T03:00:00Z') });
   await installMocks(page2);
@@ -5995,7 +5994,7 @@ async function passCostBreakdown(browser) {
 
   /* 7 窄屏 390：面板不撑破文档，表能键盘横滚（复用 X/Y 趟的判据形状） */
   const nctx = await browser.newContext({ viewport: { width: 390, height: 780 }, locale: 'zh-CN' });
-  await nctx.addInitScript(() => localStorage.setItem('trinity-console.theme', 'light'));
+  await nctx.addInitScript(() => localStorage.setItem('agent1-console.theme', 'light'));
   const npage = await nctx.newPage();
   await installMocks(npage);
   await npage.route('**/api/tasks/*/cost-breakdown', (r) =>
@@ -6052,7 +6051,7 @@ async function passCostBreakdown(browser) {
       colorScheme: scheme,
       locale: 'zh-CN',
     });
-    await sctx.addInitScript((s) => localStorage.setItem('trinity-console.theme', s), scheme);
+    await sctx.addInitScript((s) => localStorage.setItem('agent1-console.theme', s), scheme);
     const spage = await sctx.newPage();
     await installMocks(spage);
     await spage.route('**/api/tasks/*/cost-breakdown', (r) =>
@@ -6116,7 +6115,7 @@ async function passCostBreakdown(browser) {
 
   /* ---- AA-neg：三条摘法，各证一次"这批评据真的会红" ---- */
   const negctx = await browser.newContext({ viewport: { width: 1440, height: 1000 }, locale: 'zh-CN' });
-  await negctx.addInitScript(() => localStorage.setItem('trinity-console.theme', 'light'));
+  await negctx.addInitScript(() => localStorage.setItem('agent1-console.theme', 'light'));
   const neg = await negctx.newPage();
   await installMocks(neg);
   const broken = JSON.parse(JSON.stringify(costBody));
@@ -6171,7 +6170,7 @@ async function openEval(browser, scenario, viewport) {
     colorScheme: 'light',
     locale: 'zh-CN',
   });
-  await ctx.addInitScript(() => localStorage.setItem('trinity-console.theme', 'light'));
+  await ctx.addInitScript(() => localStorage.setItem('agent1-console.theme', 'light'));
   const page = await ctx.newPage();
   const errors = [];
   page.on('pageerror', (e) => errors.push(e.message));
@@ -6566,7 +6565,7 @@ async function openKnowledge(browser, scenario, opts = {}) {
     locale: 'zh-CN',
   });
   await ctx.addInitScript(
-    (scheme) => localStorage.setItem('trinity-console.theme', scheme),
+    (scheme) => localStorage.setItem('agent1-console.theme', scheme),
     opts.scheme || 'light',
   );
   if (opts.hidden) {
@@ -7243,7 +7242,7 @@ async function passModelSwitch(browser, scheme, label) {
     colorScheme: scheme,
     locale: 'zh-CN',
   });
-  await ctx.addInitScript((s) => localStorage.setItem('trinity-console.theme', s), scheme);
+  await ctx.addInitScript((s) => localStorage.setItem('agent1-console.theme', s), scheme);
 
   /* ---------- 主路径：候选来自响应 → 应用 → 胶囊跟着变 → 拒绝 → 回落 ---------- */
   const state = createModelOverrideMock(modelsBodyWithCatalog);
@@ -7507,7 +7506,7 @@ async function passModelSwitch(browser, scheme, label) {
     const svg = document.querySelector('.topbar-theme-toggle svg') ?? null;
     return {
       attr: document.documentElement.dataset.theme ?? null,
-      stored: localStorage.getItem('trinity-console.theme'),
+      stored: localStorage.getItem('agent1-console.theme'),
       label: document.querySelector('.topbar-theme-toggle')?.getAttribute('aria-label') ?? null,
       /* 自绘图标没有 data-icon，读 DOM 事实：太阳有那个圆心、月亮没有。 */
       icon: svg ? (svg.querySelector('circle') ? 'sun' : 'moon') : null,
@@ -7606,7 +7605,7 @@ async function passModelSwitch(browser, scheme, label) {
     isMobile: true,
     hasTouch: true,
   });
-  await narrowCtx.addInitScript((s) => localStorage.setItem('trinity-console.theme', s), scheme);
+  await narrowCtx.addInitScript((s) => localStorage.setItem('agent1-console.theme', s), scheme);
   const npage = await narrowCtx.newPage();
   const nErrors = [];
   npage.on('pageerror', (e) => nErrors.push(e.message));
@@ -7710,7 +7709,7 @@ async function passRunConfigPanel(browser) {
       isMobile: Boolean(opts.viewport),
       hasTouch: Boolean(opts.viewport),
     });
-    await ctx.addInitScript((s) => localStorage.setItem('trinity-console.theme', s), opts.scheme || 'light');
+    await ctx.addInitScript((s) => localStorage.setItem('agent1-console.theme', s), opts.scheme || 'light');
     const page = await ctx.newPage();
     page.on('pageerror', (e) => errors.push(e.message));
     await installMocks(page);
@@ -9192,7 +9191,7 @@ async function passModelKey(browser) {
     colorScheme: 'light',
     locale: 'zh-CN',
   });
-  await ctx.addInitScript((s) => localStorage.setItem('trinity-console.theme', s), 'light');
+  await ctx.addInitScript((s) => localStorage.setItem('agent1-console.theme', s), 'light');
   const page = await ctx.newPage();
   const errors = [];
   page.on('pageerror', (e) => errors.push(e.message));
@@ -9553,7 +9552,7 @@ async function passModelKeyDark(browser) {
     colorScheme: 'dark',
     locale: 'zh-CN',
   });
-  await ctx.addInitScript((s) => localStorage.setItem('trinity-console.theme', s), 'dark');
+  await ctx.addInitScript((s) => localStorage.setItem('agent1-console.theme', s), 'dark');
   const page = await ctx.newPage();
   const errors = [];
   page.on('pageerror', (e) => errors.push(e.message));
@@ -9762,7 +9761,7 @@ async function passAnswerReveal(browser, reduceMotion, label) {
     // AF-6 要读剪贴板；授不授都写明，读不到时那条判据会标出来而不是假装过
     permissions: ['clipboard-read', 'clipboard-write'],
   });
-  await ctx.addInitScript(() => localStorage.setItem('trinity-console.theme', 'light'));
+  await ctx.addInitScript(() => localStorage.setItem('agent1-console.theme', 'light'));
   const page = await ctx.newPage();
   const errors = [];
   page.on('pageerror', (e) => errors.push(e.message));
