@@ -20,7 +20,7 @@
 > v0.2.0 已改为只加 `node_end`，见[已知边界](#已知边界)）；
 > ¥0.0546 是**事件侧真值**，任务表里的 `tasks.cost` 只有 ¥0.0345（H-2，节点出口只记末次调用；
 > v0.2.0 已改为节点级累加并回填历史 done 任务，见[已知边界](#已知边界)）。
-> 两处的关闭申报均已提交，待复核确认。复跑命令在[界面预览](#界面预览)末尾。
+> 两处的关闭申报已复核确认。复跑命令在[界面预览](#界面预览)末尾。
 
 ---
 
@@ -434,7 +434,7 @@ pytest tests -q            # CI 跑的就是这一条
   而双层 quiet 下 `--collect-only` **不打印** "N tests collected" 那一行（实测读不出数）。
 - **当前读数**（2026-10-25 在本工作树实跑）：收集 **1,092** = 单元 **841** + 集成 **251**；
   全量 **1,092 passed / 0 skipped / 0 failed / 0 error**，98.35 s。v0.2.0 新增了 H-2 / G-7 /
-  B-4 / `sql_query` 的用例；`test_stream_full_sequence` 单测连跑 **20 次全绿**（G-7 关闭申报，辅助证据）。
+  B-4 / `sql_query` 的用例；`test_stream_full_sequence` 单测连跑 **20 次全绿**（G-7 已关闭，辅助证据）。
   ⚠️ 2026-10-07 曾在全量跑中偶发 `test_stream_full_sequence` 失败（SSE 只收到 1 条 node 增量，
   断言要求 ≥2），根因是事件总线不补发历史帧。v0.2.0 已补**内存**历史帧与 `Last-Event-ID` 跳过；
   **方案 B 契约**：终态任务只保证 `snapshot + done`、不保证 node 历史，完整轨迹走 `/trace`
@@ -493,15 +493,15 @@ pytest tests -q            # CI 跑的就是这一条
 | **A-3** | `/health` 在鉴权豁免清单里，而它带 `?deep=true` 会**真调一次 LLM**——免鉴权 + 非回环时同网段任何人可反复烧额度（顺带白送一批零 token 的接口） | 不设 token：`curl "$BASE/health?deep=true"` 会产生一次真实调用（`GET /health` 不带参数不会） |
 | **A-5** | 代码沙箱**只有墙钟超时**，没有 CPU / 内存 / 磁盘 / 输出字节的上限；子进程 stdout 无上限灌进 API 进程，只在最后一步截断展示。而队列与在途任务都活在这一个进程里 | `grep -c "setrlimit" core/tools/sandbox.py` ⇒ **0**，代码里只搜得到 `timeout=` |
 | **B-1** | 任务列表只在"最近 **30** 条"里筛：后端支持 `status` / `limit`（上限 200）/ `offset` 并返回 `total`，前端两个页面都写死 `fetchTaskList(30)` 再在本地 `filter` ⇒ 超出的历史任务在界面上**根本不存在**，且不报错、不红屏 | `grep -n "offset=" web-react/src/api/client.ts` ⇒ **0** |
-| **B-4** | 知识库页**没有检索测试**（修复前；上传、解析/索引状态机进度、文档与 chunk 读数都在，`POST /knowledge/search` 只在 API 侧）。**v0.2.0 已加「试检索」面板（待复核）** | 修复前 `grep -rn "knowledge/search" web-react/src` ⇒ 0；v0.2.0 起同一命令有调用，页面可直接检索 |
+| **B-4** | 知识库页**没有检索测试**（修复前；上传、解析/索引状态机进度、文档与 chunk 读数都在，`POST /knowledge/search` 只在 API 侧）。**v0.2.0 已加「试检索」面板（复核者确认）** | 修复前 `grep -rn "knowledge/search" web-react/src` ⇒ 0；v0.2.0 起同一命令有调用，页面可直接检索 |
 | **C-1** | 今天的代码**不产 p 值**：McNemar / Wilcoxon / Holm–Bonferroni 已于 2026-09-21 整条删除（样本量给不出可信 p，只报 Δ 与逐题判据）。**仓库里出现的 p 值全部是历史留档**，包括本文的 30 秒摘要 | `grep -n "significance_removed" evaluation/ablation.py` |
 | **C-2** | 消融矩阵与 nDCG@5 那张 15 臂表仍是**旧度量口径**（向量度量纠正后只复跑了检索评测，nDCG 没重跑）⇒ 跨表比数字会错 | 对比 `python scripts/eval_retrieval.py`（新口径、零 LLM）与 `docs/m3_design.md` 的 15 臂表 |
 | **C-3** | 报告头号结论（精排 **+3.66pp**）在作者本机**不可复跑**：精排臂要 `torch` / `transformers`（≈2 GB），没装就固定 **4 条 skip**（是缺依赖，不是失败，也不是"测试变少了"）。本机 `.venv` 已装 `torch 2.14.0+cpu`，当前 **0 skip** | 缺依赖环境：`python -c "import torch"` 报错且 `pytest -q` 尾行 `4 skipped`；本机：`pytest -q` 尾行 `0 skipped` |
 | **E-1** | 依赖全是 `>=` 下限、**没有 lock** ⇒ 新机器解析出的组合与作者测过的**不是同一个**。实测本机 fastapi 0.135.1 / langchain-core 1.2.19 / pydantic 2.12.5，其中 `langchain-core` 下限写 0.x 而实装 1.x，**跨了一个 major** | `ls *.lock` 为空；`python -m pip show langchain-core` |
 | **F-1** | 代码是 MIT，但随仓库提交的 **1,000 篇 CMRC2018 派生文档是 CC-BY-SA-4.0**，而仓里没有 `NOTICE` / `ATTRIBUTION` ⇒ 别人 fork 再分发时，ShareAlike 的义务在 LICENSE 里看不见 | `ls LICENSE NOTICE*` 只有 MIT 那份 |
 | **G-2** | `tests/` 不在 mypy 的配置目标里（ruff **会**查它）⇒ 测试代码里的类型错误不会在门禁里露头，用例照样能跑绿 | 看 `pyproject.toml` 的 `[tool.mypy].files`，没有 `tests` |
-| **H-1** | 轨迹页「总耗时」曾是墙钟的 **1.7–2.0 倍**：它对**每条事件**求和，而 `node_end` 已经把本节点的 `llm_call` 全包在里面 ⇒ 两层相加重复计。本文首屏那张 GIF 里那格 `1m 10s` 就是它（那条任务真实墙钟 41.6 s）。**v0.2.0 已改为只加未筛选的 `node_end`（待复核）** | 旧算法：对"全部事件"与"仅 `node_end`"分别求和，前者是 1.69–2.00×；v0.2.0：页面指标卡与 Σ `node_end` 一致，筛选不改变总耗时（`web-react/tools/uicheck/traceDuration.cjs`） |
-| **H-2** | `tasks.cost` 只记**每个节点最后一次** LLM 调用 ⇒ 多步任务少算 **37–39%**（Q6-01 只补了 `llm_call` 事件通道，节点出口那条 `TraceRecord` 仍取 `last_usage`，而落库加的是节点记录）。`/cost-breakdown` 自带的对账位在真实多步任务上就是 `false`；门禁那条 T1 喂的是"每节点各一次调用"的样本，结构上撞不到它。**v0.2.0 已改为节点级累加并回填历史 done 任务（待复核）** | `curl -s "$BASE/tasks/<id>/cost-breakdown"` 看 `reconcile.all_equal`；v0.2.0 后 done 任务全 true，唯一例外是取消任务 `task-1365c179c055`（`tasks.cost=0`，不在 H-2 判据内） |
+| **H-1** | 轨迹页「总耗时」曾是墙钟的 **1.7–2.0 倍**：它对**每条事件**求和，而 `node_end` 已经把本节点的 `llm_call` 全包在里面 ⇒ 两层相加重复计。本文首屏那张 GIF 里那格 `1m 10s` 就是它（那条任务真实墙钟 41.6 s）。**v0.2.0 已改为只加未筛选的 `node_end`（复核者确认）** | 旧算法：对"全部事件"与"仅 `node_end`"分别求和，前者是 1.69–2.00×；v0.2.0：页面指标卡与 Σ `node_end` 一致，筛选不改变总耗时（`web-react/tools/uicheck/traceDuration.cjs`） |
+| **H-2** | `tasks.cost` 只记**每个节点最后一次** LLM 调用 ⇒ 多步任务少算 **37–39%**（Q6-01 只补了 `llm_call` 事件通道，节点出口那条 `TraceRecord` 仍取 `last_usage`，而落库加的是节点记录）。`/cost-breakdown` 自带的对账位在真实多步任务上就是 `false`；门禁那条 T1 喂的是"每节点各一次调用"的样本，结构上撞不到它。**v0.2.0 已改为节点级累加并回填历史 done 任务（复核者确认）** | `curl -s "$BASE/tasks/<id>/cost-breakdown"` 看 `reconcile.all_equal`；v0.2.0 后 done 任务全 true，唯一例外是取消任务 `task-1365c179c055`（`tasks.cost=0`，不在 H-2 判据内） |
 
 还有两句容易被读反的提醒：**配了 `healthcheck` 不等于会自愈**（D-5，Docker 不会因为容器 unhealthy
 而重启它）；**响应头里有 `X-Request-ID` 也不等于日志里 grep 得到它**（D-2，格式串里没这一列）。

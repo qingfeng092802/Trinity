@@ -117,7 +117,7 @@ Windows 上得引 Job Object / AppContainer —— 那不是"一行顺手"的量
 **影响**：后端仍能产出的能力，界面这一侧看不到；文档里提到"逐题 diff"时要说明它今天只在代码层。
 **关闭条件**：要么在控制台补一屏两臂对比，要么把这两个函数连同测试一起摘掉（别留"看起来还在"的读取端）。
 
-### B-4 知识库页没有检索测试（P2）
+### B-4 知识库页没有检索测试（P2，**已关闭 2026-10-26**）
 
 **现象**：知识库页提供上传、解析/索引状态机进度、文档与 chunk 读数，**没有**检索输入框；
 `POST /knowledge/search` 只在 API 侧（修复前）。
@@ -127,7 +127,7 @@ Windows 上得引 Job Object / AppContainer —— 那不是"一行顺手"的量
 **关闭条件**：在知识库页加一个"试检索"小面板（复用 `/knowledge/search`，把 `bm25_score` /
 `vector_score` / `score` 三列都摆出来），顺带能演示权重对排序的实际影响。
 
-#### 关闭申报（2026-10-25，待复核，未勾关闭）
+#### 关闭申报（2026-10-25，复核者确认）
 
 - **结论**：已修复
 - **修改文件**：`web-react/src/pages/KnowledgePage.tsx`、`web-react/src/api/client.ts`、`web-react/src/types.ts`、`web-react/src/index.css`、`web-react/tools/uicheck/kbSearch.cjs`；`README.md` 与本节同步改为 `POST /knowledge/search`。
@@ -143,7 +143,7 @@ NODE_PATH='C:\Users\15539\.workbuddy\binaries\node\workspace\node_modules' \
 
 - **复跑读数（2026-10-25）**：真实检索命中 **5** 条；首条含 `BM25 1.0000` / `向量 1.0000` / `综合 1.0000`；网络请求只有 `POST /api/knowledge/search`，无 GET；空库桩返回 `200 + hits: []` 时页面显示“库为空”；409 `fingerprint_mismatch` 桩显示“需要全量重索引”。
 - **失败路径/边界用例**：空库不报错；409 走现有 `ApiFetchError` 文案；检索只发 POST；`top_k` 选择器 1~20（默认 5）。
-- **复核**：待复核者确认；本条未勾关闭。
+- **复核**：复核者确认（2026-10-26）。
 
 ---
 
@@ -401,7 +401,7 @@ grep -c "^\s*run:" .github/workflows/ci.yml   # 2（一条装依赖、一条跑�
 
 ---
 
-### G-7 「从头订阅」的 SSE 流其实不重放已发布事件（P1，**未关闭**）
+### G-7 「从头订阅」的 SSE 流其实不重放已发布事件（P1，**已关闭 2026-10-26**）
 
 **现象**：`tests/integration/test_api_stream.py::test_stream_full_sequence` 的 docstring 写着
 "从头订阅：snapshot → node×N → done"，但事件总线的 `subscribe()` 只是新建一个空队列
@@ -424,7 +424,7 @@ grep -c "^\s*run:" .github/workflows/ci.yml   # 2（一条装依赖、一条跑�
 ② 语义承认"从订阅时刻起"：把用例的 `>= 2` 改成断言"终态必到 + 收到的帧单调递增"，
 并在文档与 docstring 里把这句写进契约。② 便宜且不碰生产代码，① 才是用户以为的那件事。
 
-**关闭申报（2026-10-25，待复核，未勾关闭；按方案 B 收口）**
+**关闭申报（2026-10-25，复核者确认；按方案 B 收口）**
 
 - **结论**：按方案 B 收口 —— 运行中任务订阅时补发内存历史；**已终态任务只保证
   `snapshot + done`，不保证 node 历史**（完整轨迹走 `/trace`）。
@@ -463,7 +463,7 @@ grep -c "^\s*run:" .github/workflows/ci.yml   # 2（一条装依赖、一条跑�
     fresh-subscribe / 重连两条预置历史用例确定性覆盖；
   - 同一任务的 `seq` 由唯一 worker 的 `seq_box` 发号、严格递增，故 `Last-Event-ID` 对该任务 URL 可用。
     原文"`id:` 跨连接不单调"应读作**跨任务**不可比；同一任务重连时它是单调的（口径更正）。
-- **复核**：待复核者确认。
+- **复核**：复核者确认（2026-10-26）。
 
 ---
 
@@ -478,7 +478,7 @@ grep -c "^\s*run:" .github/workflows/ci.yml   # 2（一条装依赖、一条跑�
 
 ## H · 计量口径：一次任务的「耗时」与「钱」
 
-### H-1 轨迹页的「总耗时」把节点 span 和单步耗时加了两遍（P1，**未关闭**）
+### H-1 轨迹页的「总耗时」把节点 span 和单步耗时加了两遍（P1，**已关闭 2026-10-26**）
 
 **现象**：轨迹回放页顶部那块「总耗时」指标卡读出来是墙钟的 **1.69–2.00 倍**。
 README 首屏 GIF 里就能看到它（那一格显示 `1m 10s`，而那条任务真实墙钟 41.6 s）。
@@ -513,7 +513,7 @@ curl -s "$BASE/tasks/<task_id>/trace?limit=500" | python -c "import sys,json;e=j
 别沿用同一个标签。
 **为什么现在不动**：读数口径缺陷，不崩；而"对的那个说法"要连筛选态语义一起拍，归后端/前端账。
 
-**关闭申报（2026-10-25，待复核，未勾关闭）**
+**关闭申报（2026-10-25，复核者确认）**
 
 - **结论**：已修复（页面总耗时只加**未筛选**的 `node_end`；筛选只影响计数与分布）。
 - **改动**：`web-react/src/pages/TraceReplayPage.tsx` 的 `stats` 改为对未筛选 `events` 里
@@ -523,9 +523,9 @@ curl -s "$BASE/tasks/<task_id>/trace?limit=500" | python -c "import sys,json;e=j
   对 `task-804d76037a07` 读到指标卡 **1m 18s（78,000 ms）**，Σ `node_end` = **78,407 ms**，
   旧「Σ 全部事件」= **144,312 ms**；「只看失败」筛选后总耗时不变；路由拦截剔除 `node_end`
   的对照下显示 `—`。`npm run typecheck` 与 `npm run build` 均通过（2026-10-25 复跑，build 23.85 s）。
-- **复核**：待复核者确认。
+- **复核**：复核者确认（2026-10-26）。
 
-### H-2 `tasks.cost` 只记每个节点**最后一次** LLM 调用（P1，**未关闭**）
+### H-2 `tasks.cost` 只记每个节点**最后一次** LLM 调用（P1，**已关闭 2026-10-26**）
 
 **现象**：多步任务的实际花费被少算 37–39%（`tasks.cost` / Σ 事件成本 = 0.61 … 0.64），
 而 `/cost-breakdown` 自带的对账位在真实任务上就是 `false`。
@@ -568,7 +568,7 @@ Mock 造两条 `llm_call` 的节点），让 T1 先红一次；② 再二选一�
 **影响**：同屏两个数 —— 按角色那张表读事件侧（全的），任务列表与 `tasks.cost` 读节点侧（少的）。
 别把 `tasks.cost` 当账单，也别拿它做预算闸。
 
-#### 关闭申报（2026-10-25，待复核，未勾关闭）
+#### 关闭申报（2026-10-25，复核者确认）
 
 - **结论**：已修复（代码 + 历史 done 任务成本回填）
 - **修改文件**：`core/agent/base.py`（节点级累加）、`tests/unit/test_agent_usage_accumulation.py`（3 条单测）、`scripts/backfill_tasks_cost.py`（一次性回填，dry-run 默认，`--apply` 才写库）
@@ -587,7 +587,7 @@ Mock 造两条 `llm_call` 的节点），让 T1 先红一次；② 再二选一�
   `duration_ms=0` vs `Σ node_end=23612`。回填未影响耗时口径。
 - **回填后样本**：3 条历史 done 与 `task-c18c301585f0` 的 `|tasks.cost - Σ llm_call.cost|` 分别为 2.8e-7 / 2.0e-7 / 2.1e-7 / 1.3e-7，均 ≤1e-6。
 - **失败路径/边界用例**：无 `event_sink` 批量评测仍累加；有事件通道时 3 条 `llm_call` 不双计；同一节点连续两次调用会重置；取消任务按计划排除。
-- **复核**：待复核者确认；本条未勾关闭。
+- **复核**：复核者确认（2026-10-26）。
 
 ---
 
@@ -598,4 +598,4 @@ Mock 造两条 `llm_call` 的节点），让 T1 先红一次；② 再二选一�
 （B-1…B-3；B-4 检索测试已在 v0.2.0 补上）、评测里的 p 值与 nDCG 表都是历史口径且头号结论本机不可复跑（C-1…C-3）、
 可观测性只做到服务端一半（D-1…D-5）、依赖无 lock（E-1）、语料许可没进 LICENSE（F-1）、
 门禁对测试代码是半盲区、版本号有三个手写位且没人检查它、CI 只管测试不管 ruff/mypy/tsc（G-1/G-2/G-5/G-6）、
-G-8 登记全量 pytest 偶发 setup ERROR；H-1/H-2/G-7/B-4 已提交 v0.2.0 关闭申报（代码 + 证据，**待复核**）。
+G-8 登记全量 pytest 偶发 setup ERROR；H-1/H-2/G-7/B-4 已关闭（复核者确认，2026-10-26）。
