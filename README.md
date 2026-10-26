@@ -338,7 +338,7 @@ npm run dev              # http://127.0.0.1:5173，/api 与 /sse 代理到后端
 
 | 路由 | 说明 |
 |------|------|
-| `POST /tasks` | 提交 Agent 任务（可带 `use_tools: true` 开启工具） |
+| `POST /tasks` | 提交 Agent 任务（可带 `use_tools: true` 开启工具）。支持可选 `session_id`（`^[A-Za-z0-9_-]{1,64}$`），同一 session 内 Planner 可读最近 3 轮完成问答。 |
 | `GET /tasks/{id}`、`GET /tasks/{id}/trace` | 任务状态与轨迹回放 |
 | `GET /tasks/{id}/cost-breakdown` | 按角色的成本归因 |
 | `POST /tools/{name}/invoke` | 调用单个工具 |
