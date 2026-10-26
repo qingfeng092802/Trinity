@@ -447,6 +447,7 @@ pytest tests -q            # CI 跑的就是这一条
   `tests/unit/test_rag_fusion_rerank.py` 一条，两边各自定义了同名 skipif `needs_torch_stack`
   （`grep -n "needs_torch_stack" tests/unit/test_rag_embedder.py tests/unit/test_rag_fusion_rerank.py`）。
   见[已知边界](#已知边界) C-3。
+  口径限定：上面的 **1,092 / 0 skipped** 是本机读数（装了 `torch`）；CI 无 `torch` 时固定 **4 skipped**。
 - 全部用例由 **Mock LLM** 驱动，**零真实 token 消耗**；集成用例走 FastAPI `TestClient` 全路由、
   RAG 嵌入走 `MockEmbedder`、语料用仓库内 fixture ⇒ **离线可跑、不需要任何密钥**（CI 里没配 secret）。
 - 覆盖单元 + 集成，**不含真实 LLM 端到端**。真实链路请用 `python scripts/live_test_m1.py`
