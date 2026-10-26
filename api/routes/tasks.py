@@ -182,6 +182,7 @@ async def submit_task(body: TaskSubmitRequest) -> TaskAcceptedResponse:
     database.save_task(
         task_id=task_id,
         task=body.task,
+        session_id=body.session_id,
         status=STATUS_QUEUED,
         difficulty=body.difficulty,
         iterations=0,
@@ -204,6 +205,7 @@ async def submit_task(body: TaskSubmitRequest) -> TaskAcceptedResponse:
         # 三态语义（缺陷 A）：不传=None（全量）；true=全量；false=安全子集。
         use_tools=body.use_tools,
         enabled_tools=body.enabled_tools,
+        session_id=body.session_id,
         run_judge=body.run_judge,
         difficulty=body.difficulty,
         submitted_at=time.time(),
@@ -226,6 +228,7 @@ async def submit_task(body: TaskSubmitRequest) -> TaskAcceptedResponse:
     logger.info("任务受理完成 task_id=%s position=%d", task_id, position)
     return TaskAcceptedResponse(
         task_id=task_id,
+        session_id=body.session_id,
         status="queued" if position >= 1 else "running",
         queue_position=position,
         submitted_at=now(),
@@ -374,6 +377,7 @@ def _to_view(record: TaskRecord) -> TaskView:
     return TaskView(
         task_id=record.task_id,
         task=record.task,
+        session_id=record.session_id,
         status=record.status,
         iterations=record.iterations,
         score=record.score,

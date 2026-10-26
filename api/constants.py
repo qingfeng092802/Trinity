@@ -162,6 +162,9 @@ TRACE_DEFAULT_LIMIT = 200
 TASK_ID_PATTERN = r"^[A-Za-z0-9_-]{1,64}$"
 TASK_ID_RE: re.Pattern[str] = re.compile(TASK_ID_PATTERN)
 
+#: 多轮会话 id 的校验规则（与 task id 同形；客户端提供，服务端不自动生成）
+SESSION_ID_PATTERN = r"^[A-Za-z0-9_-]{1,64}$"
+
 #: 服务端生成的 task_id 前缀与随机位数
 TASK_ID_PREFIX = "task-"
 TASK_ID_HEX_LEN = 12
@@ -255,6 +258,7 @@ __all__ = [
     "MAX_TASK_CHARS",
     "MAX_UPDATE_CHARS",
     "RETRY_AFTER_SECONDS",
+    "SESSION_ID_PATTERN",
     "SSE_RETRY_MS",
     "SQLITE_BUSY_TIMEOUT_MS",
     "STATUS_ABORTED",
