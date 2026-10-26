@@ -50,8 +50,14 @@ def _collect_stream(
 
 
 def test_stream_full_sequence(api_env: TestClient) -> None:
-    """从头订阅：snapshot → node×N → done，事件顺序与数据形态正确（验收 P0-6.1）。"""
-    body = _submit(api_env, "流式观察任务")
+    """从头订阅：snapshot → node×N → done，事件顺序与数据形态正确（验收 P0-6.1）。
+
+    任务文本故意带「慢」：Mock 通道每次调用前停 0.6s，保证建流发生在任务**运行中**。
+    若用瞬时任务，它可能在客户端订阅前就已终态，而终态任务走的是
+    「snapshot + 终态补帧」快路径（契约见 ``known_residuals`` G-7），不会重放整条历史 ——
+    这时本用例量到的就不是流式序列，而是一条与 G-7 无关的时序竞态。
+    """
+    body = _submit(api_env, "慢任务：从头订阅的流式观察任务")
     events = _collect_stream(api_env, body["task_id"])
 
     names = [name for name, _data in events]
@@ -138,49 +144,12 @@ _EVENTS_PATH = "/tasks/{task_id}/events"
 
 
 def test_events_alias_returns_same_sequence_as_stream(api_env: TestClient) -> None:
-    """/events 与 /stream 产出**同一套**事件序列（共用生成器，不复制实现）。"""
-    body = _submit(api_env, "别名路由一致性任务")
-    events = _collect_stream(api_env, body["task_id"], path=_EVENTS_PATH)
+    """/events 与 /stream 产出**同一套**事件序列（共用生成器，不复制实现）。
 
-    names = [name for name, _data in events]
-    assert names[0] == "snapshot"
-    assert names[-1] == "done"
-    node_events = [data for name, data in events if name == "node"]
-    assert len(node_events) >= 2, "至少 planner + reviewer 两个节点增量"
-    for data in node_events:
-        assert data["node"] in {"planner", "executor", "reviewer"}
-
-
-def test_events_alias_404_matches_stream(api_env: TestClient) -> None:
-    """别名同样在建流**之前** 404，响应体是 JSON（与 /stream 一致）。"""
-    response = api_env.get("/tasks/task-doesnotexist00/events")
-    assert response.status_code == 404
-    assert response.json()["detail"]["code"] == "task_not_found"
-
-
-def test_events_alias_terminal_task_closes_immediately(api_env: TestClient) -> None:
-    """别名对已终态任务：snapshot + 终态事件后立刻关流（不挂起）。"""
-    body = _submit(api_env, "别名终态任务")
-    poll_terminal(api_env, body["task_id"])
-
-    start = time.time()
-    events = _collect_stream(api_env, body["task_id"], path=_EVENTS_PATH)
-    elapsed = time.time() - start
-
-    assert [name for name, _data in events] == ["snapshot", "done"]
-    assert elapsed < 3.0, f"终态任务的流应在 1s 内关闭，实际 {elapsed:.2f}s"
-
-
-# --------------------------------------------------------------------------- #
-# GET /tasks/{id}/events —— /stream 的别名
-# --------------------------------------------------------------------------- #
-#: 别名路由（前端 EventSource 命名习惯用 /events，主路径仍是 /stream）
-_EVENTS_PATH = "/tasks/{task_id}/events"
-
-
-def test_events_alias_returns_same_sequence_as_stream(api_env: TestClient) -> None:
-    """/events 与 /stream 产出**同一套**事件序列（共用生成器，不复制实现）。"""
-    body = _submit(api_env, "别名路由一致性任务")
+    任务带「慢」：与 ``test_stream_full_sequence`` 同理，避免瞬时任务在订阅前终态、
+    让用例退化到「snapshot + 终态补帧」快路径。
+    """
+    body = _submit(api_env, "慢任务：别名路由一致性任务")
     events = _collect_stream(api_env, body["task_id"], path=_EVENTS_PATH)
 
     names = [name for name, _data in events]
@@ -308,7 +277,7 @@ def _delta_emitting_factory(monkeypatch: pytest.MonkeyPatch) -> None:
         )
 
     queue = get_task_queue()
-    monkeypatch.setattr(queue._worker, "factory", factory)  # noqa: SLF001 - 替换存活 worker 工厂
+    monkeypatch.setattr(queue._worker, "factory", factory)  # 替换存活 worker 工厂
 
 
 def test_worker_frames_have_one_increasing_id_sequence(
@@ -367,19 +336,11 @@ def test_format_frame_omits_id_line_when_seq_is_none() -> None:
 # --------------------------------------------------------------------------- #
 # G-7：订阅历史补发 + Last-Event-ID 重连
 # --------------------------------------------------------------------------- #
-def test_reconnect_with_last_event_id_skips_seen_frames(api_env: TestClient) -> None:
-    """★ 重连带 ``Last-Event-ID``：真实 SSE 路由只回放 ``seq > last_event_id`` 的帧。
-
-    为什么不用「真跑一条慢任务、断开再连」：Starlette ``TestClient`` 的同步
-    ``stream()`` 会**缓冲整条响应**（实测第一行要等任务终态才到），没法在任务运行中
-    完成第二次订阅。这里把任务行停在 ``queued``、直接向事件总线预置 1..4 帧与一帧
-    ``done``，让路由走真实的 ``subscribe → 补发 → 逐帧 yield`` 路径 —— 终态帧会让
-    流自然关闭，用例完全确定性。
-    """
+def _seed_replay_task(task_id: str) -> None:
+    """建一条停在 ``queued`` 的任务，并向事件总线预置 seq 1..4 + done(5)。"""
     from api.deps import get_database, get_event_bus
     from api.events import StreamEvent
 
-    task_id = "task-g7-replay01"
     get_database().save_task(task_id=task_id, task="预置历史的补发任务", status="queued")
 
     def _node(seq: int) -> StreamEvent:
@@ -408,6 +369,37 @@ def test_reconnect_with_last_event_id_skips_seen_frames(api_env: TestClient) -> 
             data={"task_id": task_id, "status": "done", "final_answer": "ok"},
         )
     )
+
+
+def test_fresh_subscribe_replays_all_published_frames(api_env: TestClient) -> None:
+    """★ 首次订阅（无 Last-Event-ID）：先建流还是后建流都拿到完整历史（连跑 20 次）。"""
+    for index in range(20):
+        task_id = f"task-g7-replayfresh{index:02d}"
+        _seed_replay_task(task_id)
+        frames = _collect_frames(api_env, task_id)
+
+        assert [name for name, _i, _d in frames] == [
+            "snapshot",
+            "node",
+            "node",
+            "node",
+            "node",
+            "done",
+        ]
+        assert [frame_id for _n, frame_id, _d in frames if frame_id is not None] == [1, 2, 3, 4, 5]
+
+
+def test_reconnect_with_last_event_id_skips_seen_frames(api_env: TestClient) -> None:
+    """★ 重连带 ``Last-Event-ID``：真实 SSE 路由只回放 ``seq > last_event_id`` 的帧。
+
+    为什么不用「真跑一条慢任务、断开再连」：Starlette ``TestClient`` 的同步
+    ``stream()`` 会**缓冲整条响应**（实测第一行要等任务终态才到），没法在任务运行中
+    完成第二次订阅。这里把任务行停在 ``queued``、直接向事件总线预置 1..4 帧与一帧
+    ``done``，让路由走真实的 ``subscribe → 补发 → 逐帧 yield`` 路径 —— 终态帧会让
+    流自然关闭，用例完全确定性。
+    """
+    task_id = "task-g7-replay01"
+    _seed_replay_task(task_id)
 
     frames = _collect_frames(api_env, task_id, headers={"Last-Event-ID": "2"})
 
